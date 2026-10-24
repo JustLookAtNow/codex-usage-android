@@ -89,13 +89,54 @@ object UsageParser {
     }
 
     private fun finite(value: Any?): Double? = (value as? Number)?.toDouble()?.takeIf { it.isFinite() }
-    private fun epoch(value: Any?): Long? = try {
+    internal fun epoch(value: Any?): Long? = try {
         when (value) {
             is Number -> finite(value)?.takeIf { it >= 0 && it <= 253402300799.0 }?.toLong()
             is String -> Instant.parse(value).epochSecond.takeIf { it >= 0 && it <= 253402300799L }
             else -> null
         }
     } catch (_: Exception) { null }
+}
+
+data class ResetCredit(
+    val id: String?, val resetType: String?, val status: String?,
+    val grantedAt: Long?, val expiresAt: Long?, val title: String?, val description: String?
+)
+
+data class ResetCredits(val availableCount: Int, val totalEarnedCount: Int?, val credits: List<ResetCredit>?)
+
+object ResetCreditsParser {
+    fun parse(body: String): ResetCredits {
+        val root = JSONObject(body)
+        val count = count(root.opt("available_count")) ?: throw UserError("接口未提供重置点数量，保留上次结果")
+        val rows = root.optJSONArray("credits")
+        val credits = rows?.let {
+            (0 until it.length()).mapNotNull { index ->
+                val row = it.optJSONObject(index) ?: return@mapNotNull null
+                fun string(key: String) = (row.opt(key) as? String)?.takeIf(String::isNotBlank)
+                ResetCredit(string("id"), string("reset_type"), string("status"),
+                    UsageParser.epoch(row.opt("granted_at")), UsageParser.epoch(row.opt("expires_at")),
+                    string("title")?.take(200), string("description")?.take(2000))
+            }
+        }
+        return ResetCredits(count, count(root.opt("total_earned_count")), credits)
+    }
+
+    // Cache allowlisted display fields only, never the original server response.
+    fun displayJson(value: ResetCredits): String {
+        val root = JSONObject().put("available_count", value.availableCount).put("total_earned_count", value.totalEarnedCount)
+        value.credits?.let { rows ->
+            root.put("credits", org.json.JSONArray().apply {
+                rows.forEach { row -> put(JSONObject().put("id", row.id).put("reset_type", row.resetType)
+                    .put("status", row.status).put("granted_at", row.grantedAt).put("expires_at", row.expiresAt)
+                    .put("title", row.title).put("description", row.description)) }
+            })
+        }
+        return root.toString()
+    }
+
+    private fun count(value: Any?): Int? = (value as? Number)?.toDouble()
+        ?.takeIf { it.isFinite() && it >= 0 && it <= Int.MAX_VALUE && it % 1.0 == 0.0 }?.toInt()
 }
 
 fun retrySeconds(header: String?, now: Instant = Instant.now()): Long {

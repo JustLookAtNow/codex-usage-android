@@ -64,6 +64,29 @@ class CoreTest {
         assertFalse(RootCommands.discover.contains("find /"))
     }
 
+    @Test fun resetCreditDetailsKeepUnknownsAndCacheOnlyAllowedFields() {
+        val details = ResetCreditsParser.parse("""{"available_count":2,"total_earned_count":4,
+            "private":"secret","credits":[{"id":"test-credit","reset_type":"codex_rate_limits",
+            "status":"available","granted_at":"2026-10-24T00:00:00Z","expires_at":"2026-11-24T00:00:00Z",
+            "title":"Full reset","description":"Weekly + 5h","access_token":"secret"},
+            {"status":"future_status","reset_type":"future_type","granted_at":"bad","expires_at":null}]}""")
+        assertEquals(2, details.availableCount)
+        assertEquals(4, details.totalEarnedCount)
+        assertEquals(Instant.parse("2026-10-24T00:00:00Z").epochSecond, details.credits!![0].grantedAt)
+        assertNull(details.credits[1].grantedAt)
+        assertNull(details.credits[1].expiresAt)
+        assertEquals("future_status", details.credits[1].status)
+        val cached = ResetCreditsParser.displayJson(details)
+        assertFalse(cached.contains("secret"))
+        assertFalse(cached.contains("access_token"))
+        assertEquals(details, ResetCreditsParser.parse(cached))
+        assertNull(ResetCreditsParser.parse("""{"available_count":2}""").credits)
+        assertTrue(ResetCreditsParser.parse("""{"available_count":0,"credits":[]}""").credits!!.isEmpty())
+        for (count in listOf("-1", "1.5", "2147483648", "null", "\"2\"")) {
+            assertThrows(UserError::class.java) { ResetCreditsParser.parse("""{"available_count":$count}""") }
+        }
+    }
+
     @Test fun rateLimitsRespectSecondsAndHttpDates() {
         val now = Instant.parse("2026-10-24T00:00:00Z")
         assertEquals(90L, retrySeconds("90", now))

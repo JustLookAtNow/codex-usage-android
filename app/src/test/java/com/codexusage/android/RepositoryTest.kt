@@ -10,6 +10,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.net.HttpURLConnection
 import java.net.URL
+import java.io.ByteArrayOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -25,11 +26,13 @@ class RepositoryTest {
 
     private class Response(url: URL, private val code: Int, private val body: String, private val retry: String?) : HttpURLConnection(url) {
         var disconnected = false
+        val sent = ByteArrayOutputStream()
         override fun connect() = Unit
         override fun disconnect() { disconnected = true }
         override fun usingProxy() = false
         override fun getResponseCode() = code
         override fun getInputStream() = body.byteInputStream()
+        override fun getOutputStream() = sent
         override fun getHeaderField(name: String?) = if (name == "Retry-After") retry else null
     }
 
@@ -83,15 +86,19 @@ class RepositoryTest {
         val repository = UsageRepository(context, { Credentials("test-token", "test-account") }, { url ->
             val credits = url.path.endsWith("/rate-limit-reset-credits")
             Response(url, if (failure && credits) 403 else 200,
-                if (credits) """{"available_count":4}""" else usageBody, null)
+                if (credits) """{"available_count":4,"credits":[{"id":"test-credit","title":"Test reset"}]}""" else usageBody, null)
         })
         repository.refresh()
+        val details = repository.resetCredits()
+        val creditsUpdated = repository.creditsUpdatedAt
         failure = true
         repository.refresh()
         assertEquals(4, repository.credits)
         assertNotNull(repository.creditsError)
         assertNull(repository.error)
         assertNotNull(repository.usage())
+        assertEquals(details, repository.resetCredits())
+        assertEquals(creditsUpdated, repository.creditsUpdatedAt)
     }
 
     @Test fun noConfigurationNeverReadsCredentialsOrConnects() {
@@ -99,6 +106,124 @@ class RepositoryTest {
         UsageRepository(context, { error("must not load credentials") }, { error("must not connect") }).refresh()
         assertNull(UsageRepository(context).body)
         assertNull(UsageRepository(context).error)
+        assertThrows(UserError::class.java) {
+            UsageRepository(context, { error("must not load credentials") }, { error("must not connect") }).consumeReset()
+        }
+    }
+
+    @Test fun consumingUsesPostThenFetchesAuthoritativeWindowsAndCredits() {
+        var consumed = false
+        val calls = mutableListOf<Response>()
+        val repository = UsageRepository(context, { Credentials("test-token", "test-account") }, { url ->
+            val body = when {
+                url.path.endsWith("/consume") -> { consumed = true; """{"code":"reset","windows_reset":2}""" }
+                url.path.endsWith("/usage") -> usageBody.replace("25", "0")
+                else -> """{"available_count":${if (consumed) 1 else 2},"credits":[{"id":"test-credit-1","status":"available"},{"id":"test-credit-2","status":"${if (consumed) "consumed" else "available"}"}]}"""
+            }
+            Response(url, 200, body, null).also { calls += it }
+        })
+        assertTrue(repository.consumeReset("test-credit-2").contains("重置成功"))
+        val post = calls.single { it.requestMethod == "POST" }
+        assertTrue(post.url.path.endsWith("/rate-limit-reset-credits/consume"))
+        assertEquals("application/json", post.getRequestProperty("Content-Type"))
+        assertTrue(org.json.JSONObject(post.sent.toString("UTF-8")).getString("redeem_request_id").isNotBlank())
+        assertEquals("test-credit-2", org.json.JSONObject(post.sent.toString("UTF-8")).getString("credit_id"))
+        assertEquals(1, repository.credits)
+        assertEquals(100.0, repository.usage()!!.windows.first().remaining!!, 0.0)
+        assertFalse(repository.resetPending)
+        assertTrue(calls.all { it.disconnected })
+    }
+
+    @Test fun uncertainResponseKeepsRequestIdAcrossRestartAndRefreshNeverConsumes() {
+        val payloads = mutableListOf<String>()
+        var available = 1
+        val open: (URL) -> HttpURLConnection = { url ->
+            if (url.path.endsWith("/consume")) object : HttpURLConnection(url) {
+                private val sent = ByteArrayOutputStream()
+                override fun connect() = Unit
+                override fun disconnect() = Unit
+                override fun usingProxy() = false
+                override fun getOutputStream() = sent
+                override fun getResponseCode(): Int {
+                    payloads += sent.toString("UTF-8")
+                    if (payloads.size == 1) { available = 0; throw java.net.SocketTimeoutException() }
+                    return 200
+                }
+                override fun getInputStream() = """{"code":"already_redeemed"}""".byteInputStream()
+            } else Response(url, 200, if (url.path.endsWith("/usage")) usageBody
+                else """{"available_count":$available,"credits":[{"id":"test-credit-1","status":"available"}]}""", null)
+        }
+        val repository = UsageRepository(context, { Credentials("test-token", "test-account") }, open)
+        assertThrows(UserError::class.java) { repository.consumeReset("test-credit-1") }
+        assertTrue(repository.resetPending)
+        repository.refresh()
+        assertEquals(1, payloads.size)
+        assertEquals(0, repository.credits)
+        assertThrows(UserError::class.java) { repository.consumeReset("test-credit-2") }
+        assertEquals(1, payloads.size)
+        val restarted = UsageRepository(context, { Credentials("new-token", "test-account") }, open)
+        assertTrue(restarted.consumeReset().contains("已完成"))
+        assertEquals(payloads[0], payloads[1])
+        assertEquals("test-credit-1", org.json.JSONObject(payloads[1]).getString("credit_id"))
+        assertFalse(restarted.resetPending)
+    }
+
+    @Test fun zeroCreditsPreventsPostAndTerminalOutcomesDoNotClaimSuccess() {
+        var count = 0
+        var code = "nothing_to_reset"
+        var posts = 0
+        val repository = UsageRepository(context, { Credentials("test-token", "test-account") }, { url ->
+            val body = when {
+                url.path.endsWith("/consume") -> { posts++; """{"code":"$code"}""" }
+                url.path.endsWith("/usage") -> usageBody
+                else -> """{"available_count":$count}"""
+            }
+            Response(url, 200, body, null)
+        })
+        assertThrows(UserError::class.java) { repository.consumeReset() }
+        assertEquals(0, posts)
+        count = 1
+        assertThrows(UserError::class.java) { repository.consumeReset("missing-credit") }
+        assertEquals(0, posts)
+        assertTrue(repository.consumeReset().contains("没有符合条件"))
+        assertFalse(repository.resetPending)
+        code = "no_credit"
+        assertTrue(repository.consumeReset().contains("没有可用"))
+        assertFalse(repository.resetPending)
+    }
+
+    @Test fun pendingResetCannotMoveToAnotherAccountAndUnknownResultStaysPending() {
+        var account = "first"
+        var posts = 0
+        val repository = UsageRepository(context, { Credentials("test-token", account) }, { url ->
+            val body = if (url.path.endsWith("/consume")) { posts++; """{"code":"future_code"}""" }
+                else """{"available_count":2}"""
+            Response(url, 200, body, null)
+        })
+        assertThrows(UserError::class.java) { repository.consumeReset() }
+        assertTrue(repository.resetPending)
+        account = "second"
+        assertThrows(UserError::class.java) { repository.consumeReset() }
+        assertEquals(1, posts)
+        repository.clear()
+        assertFalse(repository.resetPending)
+        assertNull(repository.resetMessage)
+    }
+
+    @Test fun resetRateLimitPersistsAndRetryDoesNotSendAnotherPostDuringBackoff() {
+        var posts = 0
+        val repository = UsageRepository(context, { Credentials("test-token", "test-account") }, { url ->
+            if (url.path.endsWith("/consume")) {
+                posts++
+                Response(url, 429, "", "120")
+            } else Response(url, 200, """{"available_count":2}""", null)
+        })
+        assertThrows(UserError::class.java) { repository.consumeReset() }
+        val pending = context.getSharedPreferences("usage", Context.MODE_PRIVATE).getString("reset_request_id", null)
+        assertThrows(UserError::class.java) { repository.consumeReset() }
+        assertEquals(1, posts)
+        assertTrue(repository.resetPending)
+        assertEquals(pending, context.getSharedPreferences("usage", Context.MODE_PRIVATE).getString("reset_request_id", null))
     }
 
     @Test fun oversizedOrInvalidImportDoesNotReplaceAnExistingConfiguration() {

@@ -2,14 +2,22 @@
 
 - 项目位置：`/home/lee/projectSpace/codex-usage-android`，已从 Windows 项目的 android 子目录迁移成独立工程，使用独立 Git 仓库及 `main` 主分支。
 - Android 8.0+；Kotlin 2.0.21、AGP 8.7.3、Gradle Wrapper 8.9、JDK 17、compile/target SDK 35、Build Tools 默认 34.0.0。
-- 2026-10-24 已在 WSL 完成编译、29 项单元测试/Robolectric 测试、Lint 和调试 APK 构建。最新版已覆盖安装到 Root 手机；应用内已显示 ChatGPT 认证文件来源及成功查询结果，用户也已人工确认能够取得凭据并刷新额度。
-- `mise.toml` 指定 JDK 17；本轮构建通过临时 `JAVA_HOME` 使用本机 `/home/lee/.local/share/mise/installs/java/zulu-17.60.17.0`。后续可使用已配置的 JDK 17 执行 `./gradlew testDebugUnitTest lintDebug assembleDebug`；最终结果 `BUILD SUCCESSFUL`，29 项测试零失败。
-- Lint 为 0 错误、4 条版本提示：target SDK 35、Core 1.15.0、WorkManager runtime/testing 2.9.1 存在更新版本。未为消除版本提示擅自升级现有 SDK/构建工具链。报告：`app/build/reports/lint-results-debug.html`；测试报告：`app/build/reports/tests/testDebugUnitTest/index.html`。
+- 2026-10-24 最新一轮已在 WSL 完成编译、59 项单元测试/Robolectric 测试、Lint 和调试 APK 构建，已覆盖安装到 Root 手机。当前版本包含重置点详情及确认使用、自适应小部件、应用深浅色和手动刷新反馈。此前重置点详情已完成真实账号只读接口及应用缓存验证。
+- `mise.toml` 指定 JDK 17，使用本机 `/home/lee/.local/share/mise/installs/java/zulu-17.60.17.0`。本轮执行 `./gradlew testDebugUnitTest lintDebug assembleDebug --offline`，最终结果 `BUILD SUCCESSFUL`，59 项测试零失败。Gradle 写入用户缓存需要沙箱提权。
+- Lint 为 0 错误、44 条非阻断警告，涉及紧凑布局的小字号、嵌套权重、图标路径复杂度和依赖版本等；其中 4 条版本提示涉及 target SDK 35、Core 1.15.0、WorkManager runtime/testing 2.9.1。未为消除版本提示擅自升级现有 SDK/构建工具链。报告：`app/build/reports/lint-results-debug.html`；测试报告：`app/build/reports/tests/testDebugUnitTest/index.html`。
 - APK：`app/build/outputs/apk/debug/app-debug.apk`，包名 `com.codexusage.android`，版本 0.1.0，最低 Android 8.0/API 26；已通过 APK v2 签名验证和 zipalign 检查。
-- 当前 APK：2,836,955 字节，SHA-256 为 `cb6b657932ff8288ab9851230217c2d9fe44dbf47eb87660e011c38221bf3ced`。
+- 当前 APK：2,918,777 字节，SHA-256 为 `ed6b4fc06200f3be013b13c919ec44026a853c752c1cfb6394c04d434aec0034`。已通过 apksigner 验证及 zipalign 检查，并通过 `adb install -r` 安装成功。
+- 小部件默认 4×2，可拖动缩为 4×1、2×1；4×2／4×1 浅色使用进度条、深色使用双色圆环，去除“剩余”“后恢复”小字。圆环内文字与图形共同缩放，测试覆盖 0%、100% 和未知额度，避免百分比溢出。
+- 2×1 采用用户选定的 C2 双行布局：只显示时钟／周历、百分比和倒计时，右侧保留刷新按钮。64dp GPT 水印居中于卡片左半部；浅色约 6%、深色约 7% 不透明度直接写入专用矢量图标路径颜色，修复桌面忽略 ImageView tint 后图标不透明的问题。回归验证实际绘制像素透明度和居中位置，覆盖 Android 9／15 及 140×72、180×80dp。
+- 倒计时由本地非唤醒、非精确定时按分钟尽力更新，不增加网络请求；系统省电可能延迟，恢复后按当前时刻重算。删除最后一个小部件或清除配置时取消，重启和安装更新后恢复。缺少时间显示“—”，到期显示“0分钟”，不推算额度恢复。
+- 应用页面、卡片、按钮、原生弹窗及系统栏适配系统深浅色。手动刷新立即显示“刷新中”并模糊百分比／圆环，至少保持 600ms，成功或失败后恢复；重复点击合并，中断状态两分钟后过期。4×1／4×2 保留进度图形，2×1 使用原生文字模糊反馈。设计稿与内置 imagegen 提示词保存于 design/。
+- 按用户最新要求精简展示：顶部额度卡片仅显示重置点数量和可用项目的到期时间（按先后排列），完整详情默认折叠；点击“展开重置点详情”查看，屏幕重建保留展开状态。详情包含累计获得数（接口提供时）、标题、说明、状态、类型、发放/到期时间（含年份，本地时区）、编号及独立更新时间。错误和重置结果保持可见；仅缓存白名单字段，失败保留详情并提示过时。
+- 每项详情右侧新增“使用”按钮和确认弹窗，指定使用对应项目；`POST rate-limit-reset-credits/consume`，请求体包含 `redeem_request_id` 和所选 `credit_id`，由服务决定符合条件的额度周期。处理 `reset` / `already_redeemed` / `nothing_to_reset` / `no_credit`，确认结果后重新查询额度、点数并更新小部件。后台任务绝不调用消费接口。
+- 使用前重新查询可用数及所选项目状态；发送前持久保存 UUID、账号 SHA-256 及所选 credit ID，超时/未知结果/429 保留请求，在详情中点击“重试本次重置”或进程重启后复用相同 UUID 和 credit ID，避免重复消耗；确认结果前拒绝换用其他项目，账号变化拒绝重试。清除或重新配置凭据会清除待确认请求。更新现有测试验证顶部摘要、默认折叠/展开/收起、每项独立按钮、确认取消不发请求、指定 credit ID、失效项目阻止发送和重启重试不换项目；完整 36 项测试、Lint 和构建均通过。
+- 用户随后明确答复“允许只读验证”，授权 Root 读取 ChatGPT 当前会话凭据并只读查询详情；只读验证已通过，`GET rate-limit-reset-credits` 返回 HTTP 200、2 个可用重置点。应用缓存也已保存 2 项完整详情（编号、标题、说明、类型、状态、发放时间、到期时间），额度及重置点查询均无错误，未存在待确认的重置请求。真实凭据仅在内存和 stdin 传递，不保存、不输出；未调用消费接口或使用账号重置点。实现字段和请求格式已与 OpenAI 官方开源 `backend-client/src/client/rate_limit_resets.rs`、`types.rs` 及官方 App Server 文档核对。
 - 历史上传：此前已按用户要求参考 Flutter 项目的 `upload_apks.sh`，上传到同一个 WebDAV 的 `资料/apks/codex-usage-android-0.1.0-debug-20261024-0a084e32.apk`，HTTP 201；回读远端文件 4,948,474 字节，SHA-256 与当时的本地文件一致。此次新版未重新上传。未复制 WebDAV 真实凭据到本项目。
 - 既有修复：窗口边距改用 AndroidX WindowInsetsCompat；Root 超时清理避免被继承的输出管道阻塞，自定义路径只允许普通文件；失败保留重置点数量；HTTP 日期限流等待设上限；小部件额度分行、刷新触控区域 48dp、失败仍显示更新时间；清除配置与调度/小部件更新同步；文件选择器状态跨界面重建保存；凭据清除时尝试删除 Keystore 密钥；缓存及限流同步写入检查磁盘错误；修正字符串资源和 API 31 小部件元数据兼容性。
-- 自动化测试仅使用虚构凭据、假 HTTP 响应和测试 AES 密钥，不读取真实认证文件。加密测试验证 AES-GCM 和私有存储的加解密、随机 IV 和篡改检测；真实 Android Keystore 的密钥持久性仍需真机验收。保留使用 Gradle Wrapper 的 CI 配置，目前按用户要求停用 GitHub Actions；本轮按用户要求提交本地源码和文档，不推送，不创建 GitHub Release 或上传 APK。
+- 自动化测试仅使用虚构凭据、假 HTTP 响应和测试 AES 密钥，不读取真实认证文件。加密测试验证 AES-GCM 和私有存储的加解密、随机 IV 和篡改检测；真实 Android Keystore 的密钥持久性仍需真机验收。保留使用 Gradle Wrapper 的 CI 配置，目前按用户要求停用 GitHub Actions；用户最新要求将已完成改动提交并推送到 origin/main；包括源码、测试、文档和设计稿。此次不创建 GitHub Release 或上传 APK。
 - 用户已明确授权读取手机 ChatGPT 认证文件及测试额度请求。Root 默认来源改为 `/data/user/0/com.openai.chatgpt/shared_prefs/com.auth0.authentication.storage.xml`，并结合 `files/datastore/global_session.json` 选取当前 `sessions.*` 凭据，禁止回退旧 `users.*` 缓存；保留终端 Codex auth.json、自定义路径和手工导入。每次重读文件，检查会话一致性、源到期时间和 JWT 到期时间；不保存或刷新 refresh token、不修改 ChatGPT 数据。
 - Root 命令使用 Magisk/KernelSU 的 `su -M -c` 在全局挂载命名空间执行，支持访问其他应用数据；在本机 KernelSU 中已验证。新增 7 项 ChatGPT 解析测试覆盖当前会话选择、旧凭据隔离、源 token 更新、退出登录、到期校验、错误 JWT、恶意 XML 及默认路径。
 - 2026-10-24 真机只读测试：ChatGPT 当前会话 token 的存储类型为 DPoP，但现有 Bearer + ChatGPT-Account-Id 方式在 `usage` 与 `rate-limit-reset-credits` 均得到 HTTP 200，成功返回额度和重置点。真实凭据只经内存和 stdin 传递，未写入项目、日志或测试数据。

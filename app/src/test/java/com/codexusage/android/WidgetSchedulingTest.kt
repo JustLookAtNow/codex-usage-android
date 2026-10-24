@@ -55,7 +55,7 @@ class WidgetSchedulingTest {
         assertNull(UsageRepository(context).error)
     }
 
-    @Test fun widgetRetainsUpdateTimeWithErrorsAndClearsAllOldQuota() {
+    @Test fun widgetRetainsCachedQuotaWithErrorsAndClearsAllOldQuota() {
         val manager = shadowOf(AppWidgetManager.getInstance(context))
         val id = manager.createWidget(UsageWidget::class.java, R.layout.usage_widget)
         context.getSharedPreferences("credentials", Context.MODE_PRIVATE).edit().putString("mode", "test").commit()
@@ -65,18 +65,23 @@ class WidgetSchedulingTest {
             .putString("error", "网络连接失败").commit()
         UsageWidget.updateAll(context)
         var view = manager.getViewFor(id)
-        assertEquals("5h  75%\nWeekly  50%", view.findViewById<TextView>(R.id.widget_usage).text.toString())
+        assertEquals("75%", view.findViewById<TextView>(R.id.widget_primary_value).text.toString())
+        assertEquals("50%", view.findViewById<TextView>(R.id.widget_weekly_value).text.toString())
         val status = view.findViewById<TextView>(R.id.widget_status).text.toString()
-        assertTrue(status.contains("更新于"))
-        assertTrue(status.contains("旧数据"))
-        assertEquals(2, view.findViewById<TextView>(R.id.widget_reset).text.lines().count { it.startsWith("重置 ") })
+        assertTrue(status.contains("缓存"))
+        val description = view.findViewById<TextView>(R.id.widget_status).contentDescription.toString()
+        assertTrue(description.contains("更新于"))
+        assertTrue(description.contains("旧数据"))
+        assertFalse(view.findViewById<TextView>(R.id.widget_primary_countdown).text.contains("重置"))
         CredentialStore(context).clear()
         UsageRepository(context).clear()
         UsageWidget.updateAll(context)
         view = manager.getViewFor(id)
-        assertEquals("5h  —\nWeekly  —", view.findViewById<TextView>(R.id.widget_usage).text.toString())
-        assertEquals("请打开应用配置凭据", view.findViewById<TextView>(R.id.widget_status).text.toString())
-        view.findViewById<TextView>(R.id.widget_refresh).performClick()
+        assertEquals("—", view.findViewById<TextView>(R.id.widget_primary_value).text.toString())
+        assertEquals("—", view.findViewById<TextView>(R.id.widget_weekly_value).text.toString())
+        assertEquals("—", view.findViewById<TextView>(R.id.widget_primary_countdown).text.toString())
+        assertEquals("请配置", view.findViewById<TextView>(R.id.widget_status).text.toString())
+        view.findViewById<android.widget.ImageView>(R.id.widget_refresh).performClick()
         assertEquals(MainActivity::class.java.name, shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.component!!.className)
     }
 }
