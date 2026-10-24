@@ -114,11 +114,11 @@ object RootCommands {
         return "'" + path.replace("'", "'\"'\"'") + "'"
     }
 
-    // Only conventional Codex homes; never recursively search application data.
+    // Prefer ChatGPT's known auth store, then conventional Codex homes. No recursive scan.
     val discover = """
         [ "${'$'}(id -u)" = 0 ] || exit 13
         printf 'ROOT_OK\n'
-        for p in /data/data/*/files/home/.codex/auth.json /data/user/0/*/files/home/.codex/auth.json /data/data/*/files/.codex/auth.json /data/local/tmp/.codex/auth.json; do
+        for p in $CHATGPT_AUTH_PATH /data/data/*/files/home/.codex/auth.json /data/user/0/*/files/home/.codex/auth.json /data/data/*/files/.codex/auth.json /data/local/tmp/.codex/auth.json; do
           [ -f "${'$'}p" ] && printf '%s\n' "${'$'}p"
         done
         exit 0

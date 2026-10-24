@@ -78,7 +78,7 @@ class UsageRepository(
             connection.setRequestProperty("originator", "codex_cli_rs")
             when (val status = connection.responseCode) {
                 200 -> return connection.inputStream.use { readBounded(it, RESPONSE_MAX_BYTES) }.toString(Charsets.UTF_8)
-                401 -> throw UserError("凭据已失效：Root 模式请更新源文件，导入模式请重新导入")
+                401 -> throw UserError("凭据已失效：Root 模式请在来源应用更新登录，导入模式请重新导入")
                 403 -> throw UserError("访问受限（403），请检查网络或账号权限")
                 429 -> {
                     val delay = retrySeconds(connection.getHeaderField("Retry-After"), Instant.now())

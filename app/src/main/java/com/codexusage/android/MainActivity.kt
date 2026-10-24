@@ -1,6 +1,5 @@
 package com.codexusage.android
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.appwidget.AppWidgetManager
@@ -105,9 +104,9 @@ class MainActivity : Activity() {
                 }.show()
         }
         text("使用说明", 21, bold = true)
-        text("Root 查找只检查终端应用常见的 .codex/auth.json 位置。请先在手机终端中登录 Codex，并在权限管理器中允许本应用使用 Root。找不到时可填写绝对路径。", 13, "#65766F")
+        text("Root 自动查找默认读取 ChatGPT 安卓应用的当前登录。请先登录 ChatGPT，并在权限管理器中允许本应用使用 Root。也支持终端中的 Codex auth.json 和自定义路径。", 13, "#65766F")
         text("也可以从已登录的电脑或手机选择 auth.json 导入。仅支持 ChatGPT 账号登录，API Key 不支持订阅额度查询。导入内容使用 Android Keystore 加密保存；不会上传给其他服务器。", 13, "#65766F")
-        text("后台按 15 分钟调度，省电模式可能延迟。桌面显示重置的本地时间；断网时保留旧数据。Root 模式每次刷新重新读取源文件；导入模式凭据失效后需要重新导入。第一阶段不包含网页登录和自动续期。", 13, "#65766F")
+        text("后台按 15 分钟调度，省电模式可能延迟。桌面显示重置的本地时间；断网时保留旧数据。Root 模式每次刷新重新读取当前凭据；过期时请打开 ChatGPT 更新登录。导入模式需重新导入。应用不会自行续期 token。", 13, "#65766F")
         text("网络使用手机当前连接（含 VPN），暂不提供应用内代理设置。", 13, "#65766F")
         getSharedPreferences("usage", MODE_PRIVATE).registerOnSharedPreferenceChangeListener(listener)
         render()
@@ -146,9 +145,10 @@ class MainActivity : Activity() {
     private fun discover() {
         var paths = emptyList<String>()
         task("正在请求 Root 并查找，请在权限管理器中授权…", after = {
-            when (paths.size) {
-                0 -> feedback.setText(R.string.root_not_found)
-                1 -> selectRoot(paths.first())
+            when {
+                paths.isEmpty() -> feedback.setText(R.string.root_not_found)
+                CHATGPT_AUTH_PATH in paths -> selectRoot(CHATGPT_AUTH_PATH)
+                paths.size == 1 -> selectRoot(paths.first())
                 else -> AlertDialog.Builder(this).setTitle("选择 Codex 凭据")
                     .setItems(paths.toTypedArray()) { _, which -> selectRoot(paths[which]) }
                     .setNegativeButton("取消", null).show()
@@ -159,11 +159,10 @@ class MainActivity : Activity() {
         }
     }
 
-    @SuppressLint("SdCardPath") // The example intentionally refers to Termux's Codex home.
     private fun askPath() {
         val input = EditText(this).apply {
-            hint = "/data/data/com.termux/files/home/.codex/auth.json"
-            setText(CredentialStore(this@MainActivity).rootPath.orEmpty())
+            hint = CHATGPT_AUTH_PATH
+            setText(CredentialStore(this@MainActivity).rootPath ?: CHATGPT_AUTH_PATH)
             setSingleLine(true)
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         }

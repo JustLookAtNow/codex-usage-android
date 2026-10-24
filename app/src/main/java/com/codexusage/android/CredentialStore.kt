@@ -46,13 +46,13 @@ class CredentialStore(context: Context, private val providedKey: (() -> SecretKe
     }
 
     fun selectRoot(path: String) {
-        AuthParser.parse(RootAccess.read(path))
+        RootAccess.credentials(path)
         if (!prefs.edit().clear().putString("mode", "root").putString("path", path).commit())
             throw UserError("无法保存凭据路径，请重试")
     }
 
     fun load(): Credentials = when (mode) {
-        "root" -> AuthParser.parse(RootAccess.read(rootPath ?: throw UserError("请重新选择 Root 凭据")))
+        "root" -> RootAccess.credentials(rootPath ?: throw UserError("请重新选择 Root 凭据"))
         "import" -> try {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, decode(prefs.getString("iv", "")!!)))
@@ -74,7 +74,9 @@ object RootAccess {
     internal fun execute(
         command: String,
         timeoutMillis: Long = 25000,
-        start: (String) -> Process = { ProcessBuilder("su", "-c", it).redirectError(File("/dev/null")).start() }
+        // Android app data isolation can hide other apps' files in our mount namespace.
+        // Magisk/KernelSU -M performs the read in the global mount namespace.
+        start: (String) -> Process = { ProcessBuilder("su", "-M", "-c", it).redirectError(File("/dev/null")).start() }
     ): ByteArray {
         val process = try {
             start(command)
@@ -99,14 +101,23 @@ object RootAccess {
         }
     }
 
-    @SuppressLint("SdCardPath") // These are other apps' root-readable homes, not our private files directory.
+    @SuppressLint("SdCardPath") // Root paths intentionally refer to other apps' private directories.
     fun discover(): List<String> {
         val lines = execute(RootCommands.discover).toString(Charsets.UTF_8).lines()
         if (lines.firstOrNull() != "ROOT_OK") throw UserError("没有获得 Root 权限")
         // /data/data and /data/user/0 generally refer to the same directory.
-        return lines.drop(1).filter { it.startsWith('/') && it.endsWith("/auth.json") }
-            .map { it.replaceFirst(Regex("^/data/user/0/"), "/data/data/") }.distinct().take(32)
+        return lines.drop(1).filter { it.startsWith('/') && (it.endsWith("/auth.json") || ChatGptAuthParser.sessionPath(it) != null) }
+            .map { it.replaceFirst(Regex("^/data/data/"), "/data/user/0/") }.distinct().take(32)
     }
 
     fun read(path: String): ByteArray = execute(RootCommands.read(path))
+
+    fun credentials(path: String): Credentials {
+        val sessionPath = ChatGptAuthParser.sessionPath(path) ?: return AuthParser.parse(read(path))
+        val session = read(sessionPath)
+        val auth = read(path)
+        // Avoid mixing login state if ChatGPT switches accounts while we read it.
+        if (!session.contentEquals(read(sessionPath))) throw UserError("ChatGPT 会话已变化，请重新刷新")
+        return ChatGptAuthParser.parse(auth, session)
+    }
 }
