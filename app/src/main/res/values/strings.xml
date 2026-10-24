@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Codex 余量</string>
+    <string name="widget_title">CODEX / 余量</string>
+    <string name="widget_refresh">刷新</string>
+    <string name="widget_refresh_description">刷新额度</string>
+    <string name="widget_empty">5h  —\nWeekly  —</string>
+    <string name="widget_import_hint">点击打开应用并导入凭据</string>
+    <string name="widget_unconfigured">尚未配置</string>
+    <string name="root_not_found">已获得 Root，但未找到凭据。请使用自定义路径或手工导入。</string>
+    <string name="widget_add_manually">请长按桌面 → 小部件 → Codex 余量</string>
+</resources>
