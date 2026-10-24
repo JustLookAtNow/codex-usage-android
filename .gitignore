@@ -1,6 +1,7 @@
 .gradle/
 .kotlin/
 local.properties
+/mise.toml
 *.jks
 *.keystore
 captures/
