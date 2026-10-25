@@ -1,5 +1,6 @@
 # WSL 开发接续说明
 
+- 2026-10-25 新增低余量配色：按原始剩余值判断，≤15% 红色、15%～40%（含40%）黄色，>40% 和未知额度保持各处原色。应用内各周期百分比（含附加额度）、所有尺寸小部件数字、浅色进度条、深色圆环及环内文字同步变色，额度回升后恢复；深浅色分别提供可读的警示色。进度条和刷新模糊文字改为位图以兼容旧版 RemoteViews，保留布局尺寸和填充比例。新增边界、附加额度、未知/恢复、跨进程序列化及原生渲染验证；`./gradlew testDebugUnitTest --tests '*Test' lintDebug assembleDebug --offline` 通过，共64项测试，Lint 0错误/44警告。小部件检查图在 `app/build/reports/widget-colors/`；新版 APK 已构建，尚未安装或上传。
 - 项目位置：`/home/lee/projectSpace/codex-usage-android`，已从 Windows 项目的 android 子目录迁移成独立工程，使用独立 Git 仓库及 `main` 主分支。
 - Android 8.0+；Kotlin 2.0.21、AGP 8.7.3、Gradle Wrapper 8.9、JDK 17、compile/target SDK 35、Build Tools 默认 34.0.0。
 - 2026-10-24 最新一轮已在 WSL 完成编译、59 项单元测试/Robolectric 测试、Lint 和调试 APK 构建，已覆盖安装到 Root 手机。当前版本包含重置点详情及确认使用、自适应小部件、应用深浅色和手动刷新反馈。此前重置点详情已完成真实账号只读接口及应用缓存验证。

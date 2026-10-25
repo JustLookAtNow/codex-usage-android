@@ -9,13 +9,16 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Canvas
 import android.graphics.Rect
+import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
+import android.os.Build
+import android.os.Parcel
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.RemoteViews
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.workDataOf
 import org.junit.Assert.*
@@ -27,6 +30,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28, 35])
@@ -56,7 +60,7 @@ class WidgetRenderingTest {
             }
             val themed = context.createConfigurationContext(config)
             for (size in WidgetSize.entries) {
-                val rings = windows.mapIndexed { index, window -> UsageWidget.quotaRing(window.remaining, index == 1) }
+                val rings = windows.mapIndexed { index, window -> UsageWidget.quotaRing(themed, window.remaining, index == 1) }
                 val remote = UsageWidget.createViews(themed, size, windows, rings, now, "", "", true)
                 val view = remote.apply(themed, FrameLayout(themed))
                 val width = if (size == WidgetSize.COMPACT) 180 else 360
@@ -71,12 +75,14 @@ class WidgetRenderingTest {
                 assertEquals("6天8小时", view.findViewById<TextView>(R.id.widget_weekly_countdown).text.toString())
                 assertEquals(View.GONE, view.findViewById<TextView>(R.id.widget_status).visibility)
                 if (size == WidgetSize.COMPACT) {
-                    assertNull(view.findViewById<ProgressBar>(R.id.widget_primary_progress))
+                    assertNull(view.findViewById<ImageView>(R.id.widget_primary_progress))
                     assertNull(view.findViewById<ImageView>(R.id.widget_primary_ring))
                 } else {
-                    val progress = view.findViewById<ProgressBar>(R.id.widget_primary_progress)
+                    val progress = view.findViewById<ImageView>(R.id.widget_primary_progress)
                     val ring = view.findViewById<ImageView>(R.id.widget_primary_ring)
-                    assertEquals(510, progress.progress)
+                    val pixels = (progress.drawable as BitmapDrawable).bitmap
+                    assertEquals(themed.getColor(R.color.widget_primary), pixels.getPixel(509, 10))
+                    assertEquals(themed.getColor(R.color.widget_track), pixels.getPixel(510, 10))
                     assertEquals(if (night) View.GONE else View.VISIBLE, progress.visibility)
                     assertEquals(if (night) View.VISIBLE else View.GONE, ring.visibility)
                     assertEquals("5h 可用 51%", ring.contentDescription.toString())
@@ -103,11 +109,12 @@ class WidgetRenderingTest {
     }
 
     @Test
+    @Config(qualifiers = "night")
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun percentagePixelsStayInsideRingWhenScaledIncludingFullAndUnknownQuota() {
         for (value in listOf(null, 0.0, 1.0, 23.0, 86.0, 100.0)) {
             for (weekly in listOf(false, true)) {
-                val source = UsageWidget.quotaRing(value, weekly)
+                val source = UsageWidget.quotaRing(context, value, weekly)
                 // Short widgets can reduce the circle to just 20px, even in a wide column.
                 for (side in listOf(20, 32, 64, 128, 256)) {
                     val scaled = Bitmap.createScaledBitmap(source, side, side, true)
@@ -116,8 +123,15 @@ class WidgetRenderingTest {
                     var textPixels = 0
                     for (y in 0 until side) for (x in 0 until side) {
                         val pixel = scaled.getPixel(x, y)
-                        if (Color.alpha(pixel) >= 128 && Color.red(pixel) >= 200 &&
-                            Color.green(pixel) >= 200 && Color.blue(pixel) >= 200) {
+                        val textColor = quotaColor(context, value, context.getColor(R.color.widget_text))
+                        // Warning text and its arc share a color; sample the central label
+                        // box for those values while retaining the full white-pixel check.
+                        val warning = value != null && value <= 40
+                        val inLabel = x >= side * 0.22 && x < side * 0.78 && y >= side * 0.31 && y < side * 0.69
+                        val matches = kotlin.math.abs(Color.red(pixel) - Color.red(textColor)) < 25 &&
+                            kotlin.math.abs(Color.green(pixel) - Color.green(textColor)) < 25 &&
+                            kotlin.math.abs(Color.blue(pixel) - Color.blue(textColor)) < 25
+                        if (Color.alpha(pixel) >= 128 && matches && (!warning || inLabel)) {
                             textPixels++
                             val dx = x + 0.5 - center
                             val dy = y + 0.5 - center
@@ -140,22 +154,105 @@ class WidgetRenderingTest {
                     (if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
             }
             val themed = context.createConfigurationContext(config)
-            val rings = windows.mapIndexed { index, window -> UsageWidget.quotaRing(window.remaining, index == 1, true) }
-            assertFalse(rings[0].sameAs(UsageWidget.quotaRing(51.0, false)))
+            val rings = windows.mapIndexed { index, window -> UsageWidget.quotaRing(themed, window.remaining, index == 1, true) }
+            assertFalse(rings[0].sameAs(UsageWidget.quotaRing(themed, 51.0, false)))
             for (size in WidgetSize.entries) {
                 val remote = UsageWidget.createViews(themed, size, windows, rings, now, "刷新中", "正在刷新额度", true, true)
                 val view = remote.apply(themed, FrameLayout(themed))
                 assertEquals("刷新中", view.findViewById<TextView>(R.id.widget_status).text.toString())
                 assertEquals(View.VISIBLE, view.findViewById<TextView>(R.id.widget_status).visibility)
                 assertEquals("", view.findViewById<TextView>(R.id.widget_primary_value).text.toString())
-                val loading = view.findViewById<TextView>(R.id.widget_primary_loading_value)
-                assertEquals("51%", loading.text.toString())
-                assertEquals(View.VISIBLE, loading.visibility)
-                assertEquals(Color.TRANSPARENT, loading.currentTextColor)
-                if (!night || size == WidgetSize.COMPACT) assertTrue(loading.shadowRadius > 0)
+                val loading = view.findViewById<ImageView>(R.id.widget_primary_loading_value)
+                val showLoading = !night || size == WidgetSize.COMPACT
+                assertEquals(if (showLoading) View.VISIBLE else View.GONE, loading.visibility)
+                if (showLoading) assertNotNull(loading.drawable)
                 assertEquals("2小时55分", view.findViewById<TextView>(R.id.widget_primary_countdown).text.toString())
             }
         }
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun quotaColorsSurviveRemoteViewsParcelRefreshAndRecoveryInEverySizeAndTheme() {
+        for (night in listOf(false, true)) {
+            val config = Configuration(context.resources.configuration).apply {
+                uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
+                    (if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
+            }
+            val themed = context.createConfigurationContext(config)
+            for (size in WidgetSize.entries) {
+                var view: View? = null
+                for ((primary, weekly) in listOf(15.0 to 40.0, 15.0001 to 40.0001, 0.0 to null, 100.0 to 90.0)) {
+                    val values = listOf(windows[0].copy(remaining = primary), windows[1].copy(remaining = weekly))
+                    for (refreshing in listOf(true, false)) {
+                        val rings = values.mapIndexed { index, window -> UsageWidget.quotaRing(themed, window.remaining, index == 1, refreshing) }
+                        val remote = UsageWidget.createViews(themed, size, values, rings, now, "", "", true, refreshing)
+                        val parcel = Parcel.obtain()
+                        val received = try {
+                            remote.writeToParcel(parcel, 0)
+                            parcel.setDataPosition(0)
+                            RemoteViews.CREATOR.createFromParcel(parcel)
+                        } finally { parcel.recycle() }
+                        if (view == null) view = received.apply(themed, FrameLayout(themed)) else received.reapply(themed, view)
+                        for (index in 0..1) {
+                            val value = values[index].remaining
+                            val normal = themed.getColor(if (size == WidgetSize.COMPACT) R.color.widget_text
+                                else if (index == 0) R.color.widget_primary else R.color.widget_weekly)
+                            val color = quotaColor(themed, value, normal)
+                            val text = view!!.findViewById<TextView>(if (index == 0) R.id.widget_primary_value else R.id.widget_weekly_value)
+                            assertEquals(color, text.currentTextColor)
+                            assertEquals(if (refreshing) "" else percentage(value), text.text.toString())
+                            val loading = view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_loading_value else R.id.widget_weekly_loading_value)
+                            val showLoading = refreshing && (!night || size == WidgetSize.COMPACT)
+                            assertEquals(if (showLoading) View.VISIBLE else View.GONE, loading.visibility)
+                            if (showLoading) {
+                                val pixels = (loading.drawable as BitmapDrawable).bitmap
+                                assertTrue("Blurred quota must use the current color", hasColor(pixels, color, 0, 0, pixels.width, pixels.height))
+                            }
+                            if (size != WidgetSize.COMPACT) {
+                                val progress = view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress)
+                                val pixels = (progress.drawable as BitmapDrawable).bitmap
+                                val track = themed.getColor(R.color.widget_track)
+                                assertEquals(if ((value ?: 0.0) >= 10.1) color else track, pixels.getPixel(100, 10))
+                                assertEquals(if (value == 100.0) color else track, pixels.getPixel(980, 10))
+                                val ring = view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring)
+                                val ringPixels = (ring.drawable as BitmapDrawable).bitmap
+                                val labelColor = quotaColor(themed, value, themed.getColor(R.color.widget_text))
+                                assertTrue("Ring label must use the current color", hasColor(ringPixels, labelColor, 56, 78, 200, 178))
+                                if (!refreshing) assertEquals(if ((value ?: 0.0) > 0) color else track, ringPixels.getPixel(128, 14))
+                            }
+                        }
+                        if (primary == 15.0 && weekly == 40.0) {
+                            val density = themed.resources.displayMetrics.density
+                            val width = ((if (size == WidgetSize.COMPACT) 140 else 360) * density).toInt()
+                            val height = ((if (size == WidgetSize.LARGE) 168 else if (size == WidgetSize.COMPACT) 72 else 80) * density).toInt()
+                            view!!.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+                            view.layout(0, 0, width, height)
+                            val rendered = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                            view.draw(Canvas(rendered))
+                            if (!refreshing) for (resource in listOf(R.color.quota_warning, R.color.quota_critical)) {
+                                assertTrue("$size night=$night: warning color missing from rendered widget",
+                                    hasColor(rendered, themed.getColor(resource), 0, 0, width, height))
+                            }
+                            val output = File("build/reports/widget-colors").apply { mkdirs() }
+                            File(output, "${Build.VERSION.SDK_INT}-$size-night-$night-refreshing-$refreshing.png")
+                                .outputStream().use { rendered.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun hasColor(bitmap: Bitmap, color: Int, left: Int, top: Int, right: Int, bottom: Int): Boolean {
+        for (y in top until bottom) for (x in left until right) {
+            val pixel = bitmap.getPixel(x, y)
+            if (Color.alpha(pixel) >= 32 && kotlin.math.abs(Color.red(pixel) - Color.red(color)) < 12 &&
+                kotlin.math.abs(Color.green(pixel) - Color.green(color)) < 12 &&
+                kotlin.math.abs(Color.blue(pixel) - Color.blue(color)) < 12) return true
+        }
+        return false
     }
 
     @Test
@@ -168,7 +265,7 @@ class WidgetRenderingTest {
             }
             val themed = context.createConfigurationContext(config)
             val values = windows.map { it.copy(remaining = 100.0) }
-            val rings = values.mapIndexed { index, value -> UsageWidget.quotaRing(value.remaining, index == 1) }
+            val rings = values.mapIndexed { index, value -> UsageWidget.quotaRing(context, value.remaining, index == 1) }
             for ((width, height) in listOf(140 to 72, 180 to 80)) {
                 val view = UsageWidget.createViews(themed, WidgetSize.COMPACT, values, rings, now, "", "", true)
                     .apply(themed, FrameLayout(themed)) as ViewGroup
@@ -188,7 +285,7 @@ class WidgetRenderingTest {
                     maximumAlpha = maxOf(maximumAlpha, Color.alpha(watermarkPixels.getPixel(x, y)))
                 }
                 assertEquals("Watermark must remain translucent after drawing", if (night) 18 else 15, maximumAlpha)
-                assertNull(view.findViewById<ProgressBar>(R.id.widget_primary_progress))
+                assertNull(view.findViewById<ImageView>(R.id.widget_primary_progress))
                 assertNull(view.findViewById<ImageView>(R.id.widget_primary_ring))
                 fun bounds(id: Int): Rect {
                     val target = view.findViewById<View>(id)
@@ -243,7 +340,7 @@ class WidgetRenderingTest {
         assertFalse(WidgetRefreshState.active(context))
         val restored = widgets.getViewFor(id)
         assertEquals("51%", restored.findViewById<TextView>(R.id.widget_primary_value).text.toString())
-        assertEquals(View.GONE, restored.findViewById<TextView>(R.id.widget_primary_loading_value).visibility)
+        assertEquals(View.GONE, restored.findViewById<ImageView>(R.id.widget_primary_loading_value).visibility)
         assertTrue(restored.findViewById<TextView>(R.id.widget_status).text.contains("缓存"))
     }
 
@@ -260,7 +357,7 @@ class WidgetRenderingTest {
 
     @Test fun missingAndExpiredDeadlinesNeverInventQuotaAndBodyOpensApp() {
         val values = listOf(windows[0].copy(remaining = null, resetAt = null), windows[1].copy(resetAt = now - 1))
-        val rings = values.mapIndexed { index, window -> UsageWidget.quotaRing(window.remaining, index == 1) }
+        val rings = values.mapIndexed { index, window -> UsageWidget.quotaRing(context, window.remaining, index == 1) }
         val views = UsageWidget.createViews(context, WidgetSize.LARGE, values, rings, now, "", "", true)
         val view = views.apply(context, FrameLayout(context))
         assertEquals("—", view.findViewById<TextView>(R.id.widget_primary_value).text.toString())

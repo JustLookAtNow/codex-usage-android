@@ -6,10 +6,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
@@ -17,13 +17,14 @@ import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.util.SizeF
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.roundToInt
+import kotlin.math.ceil
 
 fun percentage(value: Double?): String = value?.let { String.format(Locale.getDefault(), "%.0f%%", it) } ?: "—"
 fun localTime(epochSeconds: Long): String = DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochSecond(epochSeconds))
@@ -83,7 +84,7 @@ class UsageWidget : AppWidgetProvider() {
                 ).joinToString("，")
                 else -> ""
             }
-            val rings = windows.mapIndexed { index, window -> quotaRing(window?.remaining, index == 1, refreshing) }
+            val rings = windows.mapIndexed { index, window -> quotaRing(context, window?.remaining, index == 1, refreshing) }
             for (id in ids) {
                 val views = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     RemoteViews(WidgetSize.entries.associate { size ->
@@ -117,14 +118,22 @@ class UsageWidget : AppWidgetProvider() {
                 val label = if (index == 0) "5h" else "Weekly"
                 val percent = percentage(value)
                 val countdown = recoveryCountdown(windows[index]?.resetAt, now)
-                views.setTextViewText(if (index == 0) R.id.widget_primary_value else R.id.widget_weekly_value, if (refreshing) "" else percent)
+                val normalColor = context.getColor(if (size == WidgetSize.COMPACT) R.color.widget_text
+                    else if (index == 0) R.color.widget_primary else R.color.widget_weekly)
+                val color = quotaColor(context, value, normalColor)
+                val valueId = if (index == 0) R.id.widget_primary_value else R.id.widget_weekly_value
+                views.setTextViewText(valueId, if (refreshing) "" else percent)
+                views.setTextColor(valueId, color)
                 val loadingId = if (index == 0) R.id.widget_primary_loading_value else R.id.widget_weekly_loading_value
-                views.setTextViewText(loadingId, percent)
-                views.setViewVisibility(loadingId, if (refreshing) View.VISIBLE else View.GONE)
+                val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+                val showLoading = refreshing && (size == WidgetSize.COMPACT || !night)
+                if (showLoading) views.setImageViewBitmap(loadingId, quotaLoadingValue(context, value, color, size))
+                views.setViewVisibility(loadingId, if (showLoading) View.VISIBLE else View.GONE)
                 views.setTextViewText(if (index == 0) R.id.widget_primary_countdown else R.id.widget_weekly_countdown, countdown)
                 if (size != WidgetSize.COMPACT) {
-                    views.setProgressBar(if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress,
-                        1000, ((value ?: 0.0) * 10).roundToInt().coerceIn(0, 1000), false)
+                    val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
+                    views.setImageViewBitmap(progressId, quotaProgress(context, value, color))
+                    views.setContentDescription(progressId, "$label 可用 $percent")
                     views.setImageViewBitmap(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, rings[index])
                     views.setContentDescription(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, "$label 可用 $percent")
                 }
@@ -143,26 +152,27 @@ class UsageWidget : AppWidgetProvider() {
 
         // Scale the night-mode percentage with its ring. A separate full-column TextView
         // fits the column width rather than the circle's inner diameter on short widgets.
-        internal fun quotaRing(value: Double?, weekly: Boolean, refreshing: Boolean = false): Bitmap {
+        internal fun quotaRing(context: Context, value: Double?, weekly: Boolean, refreshing: Boolean = false): Bitmap {
             val bitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
                 strokeWidth = 20f
                 strokeCap = Paint.Cap.ROUND
-                color = Color.rgb(47, 56, 61)
+                color = context.getColor(R.color.widget_track)
                 if (refreshing) maskFilter = BlurMaskFilter(10f, BlurMaskFilter.Blur.NORMAL)
             }
             val bounds = RectF(14f, 14f, 242f, 242f)
             canvas.drawOval(bounds, paint)
             if (value != null && value > 0) {
-                paint.color = Color.parseColor(if (weekly) "#42D9E8" else "#29DDA0")
+                paint.color = quotaColor(context, value,
+                    context.getColor(if (weekly) R.color.widget_weekly else R.color.widget_primary))
                 canvas.drawArc(bounds, -90f, (value.coerceIn(0.0, 100.0) * 3.6).toFloat(), false, paint)
             }
             val label = percentage(value)
             paint.apply {
                 style = Paint.Style.FILL
-                color = Color.rgb(245, 248, 249)
+                color = quotaColor(context, value, context.getColor(R.color.widget_text))
                 typeface = Typeface.create("sans-serif", Typeface.BOLD)
                 textSize = 80f
             }
@@ -181,6 +191,47 @@ class UsageWidget : AppWidgetProvider() {
                 canvas.drawText(label, 128f - textBounds.exactCenterX(),
                     128f - textBounds.exactCenterY(), paint)
             }
+            return bitmap
+        }
+
+        // Bitmap colors survive RemoteViews on Android 8+, including older launchers.
+        internal fun quotaProgress(context: Context, value: Double?, color: Int): Bitmap {
+            val bitmap = Bitmap.createBitmap(1000, 20, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = context.getColor(R.color.widget_track) }
+            val bounds = RectF(0f, 0f, 1000f, 20f)
+            canvas.drawRoundRect(bounds, 10f, 10f, paint)
+            val fraction = (value ?: 0.0).coerceIn(0.0, 100.0) / 100.0
+            if (fraction > 0) {
+                canvas.save()
+                canvas.clipRect(0f, 0f, (1000 * fraction).toFloat(), 20f)
+                paint.color = color
+                canvas.drawRoundRect(bounds, 10f, 10f, paint)
+                canvas.restore()
+            }
+            return bitmap
+        }
+
+        private fun quotaLoadingValue(context: Context, value: Double?, color: Int, size: WidgetSize): Bitmap {
+            val label = percentage(value)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = color
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                val textSp = when (size) {
+                    WidgetSize.LARGE -> 44f
+                    WidgetSize.WIDE -> 28f
+                    WidgetSize.COMPACT -> 15f
+                }
+                textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, textSp, context.resources.displayMetrics)
+                maskFilter = BlurMaskFilter(6f, BlurMaskFilter.Blur.NORMAL)
+            }
+            val bounds = Rect()
+            paint.getTextBounds(label, 0, label.length, bounds)
+            val padding = 12
+            val bitmap = Bitmap.createBitmap(ceil(paint.measureText(label)).toInt() + padding * 2,
+                bounds.height() + padding * 2, Bitmap.Config.ARGB_8888)
+            bitmap.density = context.resources.displayMetrics.densityDpi
+            Canvas(bitmap).drawText(label, padding.toFloat(), (padding - bounds.top).toFloat(), paint)
             return bitmap
         }
     }

@@ -10,6 +10,9 @@ import android.content.res.Configuration
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -162,10 +165,19 @@ class MainActivity : Activity() {
         val repository = UsageRepository(this)
         val usage = repository.usage()
         source.text = CredentialStore(this).description()
-        quota.text = usage?.let {
-            it.windows.joinToString("\n\n") { window ->
-                "${window.label}   ${percentage(window.remaining)}\n重置 ${window.resetAt?.let(::localTime) ?: "未提供"}"
-            } + "\n\n套餐 ${it.plan ?: "未提供"}"
+        quota.text = usage?.let { data ->
+            SpannableStringBuilder().apply {
+                data.windows.forEachIndexed { index, window ->
+                    if (index > 0) append("\n\n")
+                    append("${window.label}   ")
+                    val start = length
+                    append(percentage(window.remaining))
+                    setSpan(ForegroundColorSpan(quotaColor(this@MainActivity, window.remaining,
+                        getColor(R.color.app_accent))), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    append("\n重置 ${window.resetAt?.let(::localTime) ?: "未提供"}")
+                }
+                append("\n\n套餐 ${data.plan ?: "未提供"}")
+            }
         } ?: "5h  —\n\nWeekly  —"
         status.text = listOfNotNull(
             if (repository.updatedAt > 0) "上次成功更新 ${localTime(repository.updatedAt / 1000)}" else "尚无成功查询",

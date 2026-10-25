@@ -5,6 +5,7 @@
 ## 已实现
 
 - 显示 5h、Weekly 和接口提供的附加额度、套餐、重置时间；顶部额度卡片显示重置点可用数量及到期时间，详情默认折叠。
+- 按原始剩余额度变色：15% 以下及等于 15% 为红色，大于 15% 且不超过 40% 为黄色，高于 40% 或未知额度保持原色。应用内百分比和所有尺寸小部件的数字、进度条、圆环同步适配深浅色，额度回升后恢复原色。
 - 展开重置点详情可查看标题、说明、状态、类型、发放时间、到期时间和编号；每项右侧的“使用”按钮经确认后使用对应重置点，成功后重新查询额度并更新小部件。超时或结果未知时保留请求编号及所选重置点，手动重试复用同一请求，避免重复消耗。
 - Root 默认读取 ChatGPT 安卓应用的当前登录，也支持终端的 Codex 凭据和绝对路径；每次查询重新读取源文件。
 - 通过系统文件选择器导入 `auth.json`，支持从电脑复制的文件。只保存查询所需的 access token 和 account ID，使用 Android Keystore / AES-GCM 加密。
@@ -76,7 +77,7 @@ Root 使用 Magisk/KernelSU 的 `su -M -c` 在全局挂载命名空间读取，�
 
 2026-10-24 用户明确授权后，重置点详情的真机只读查询返回 HTTP 200；应用已成功解析并缓存 2 项完整详情，额度及重置点查询均无错误。验证未调用消费接口，未消耗重置点，凭据仅经内存和标准输入传递。
 
-当前版本已通过 59 项单元测试／Robolectric 测试、Lint 和 APK 构建，并覆盖安装到手机。Lint 无错误，存在紧凑布局、图标路径及版本升级等非阻断警告。窗口边距使用 AndroidX WindowInsetsCompat，应用不再调用已弃用的窗口边距 API。完整报告位于 `app/build/reports/lint-results-debug.html` 和 `app/build/reports/tests/testDebugUnitTest/index.html`。
+本次低余量配色改动已通过 64 项单元测试／Robolectric 测试、Lint 和 APK 构建，新增配色已检查所有尺寸及深浅色的原生渲染图，尚未在真机验证本次配色。Lint 无错误，存在紧凑布局、图标路径及版本升级等非阻断警告。窗口边距使用 AndroidX WindowInsetsCompat，应用不再调用已弃用的窗口边距 API。Lint 报告位于 `app/build/reports/lint-results-debug.html`，配色检查图位于 `app/build/reports/widget-colors/`。
 
 需要 JDK 17、Android SDK Platform 35、Build Tools 34.0.0。用 Android Studio 打开本目录，或配置 `ANDROID_HOME` / `local.properties` 后执行：
 

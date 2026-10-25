@@ -1,0 +1,4 @@
+<resources>
+    <color name="quota_warning">#FACC15</color>
+    <color name="quota_critical">#FF6B6B</color>
+</resources>

@@ -1,0 +1,4 @@
+<resources>
+    <color name="quota_warning">#946C00</color>
+    <color name="quota_critical">#C62828</color>
+</resources>
