@@ -3,6 +3,17 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val releaseVersionName = providers.gradleProperty("releaseVersionName")
+val releaseVersionCode = providers.gradleProperty("releaseVersionCode")
+require(releaseVersionName.isPresent == releaseVersionCode.isPresent) {
+    "releaseVersionName and releaseVersionCode must be supplied together"
+}
+val targetAbi = providers.gradleProperty("targetAbi")
+if (targetAbi.isPresent) {
+    require(targetAbi.get() == "arm64-v8a") { "Only arm64-v8a release builds are supported" }
+}
+val releaseKeystore = providers.environmentVariable("RELEASE_KEYSTORE_PATH")
+
 android {
     namespace = "com.codexusage.android"
     compileSdk = 35
@@ -10,8 +21,31 @@ android {
         applicationId = "com.codexusage.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = releaseVersionCode.orNull?.toInt()?.also {
+            require(it in 1..2_100_000_000) { "Invalid release versionCode" }
+        } ?: 1
+        versionName = releaseVersionName.orNull ?: "0.1.0"
+    }
+    if (targetAbi.isPresent) {
+        splits {
+            abi {
+                isEnable = true
+                reset()
+                include(targetAbi.get())
+                isUniversalApk = false
+            }
+        }
+    }
+    if (releaseKeystore.isPresent) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseKeystore.get())
+                storePassword = providers.environmentVariable("RELEASE_STORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("RELEASE_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("RELEASE_KEY_PASSWORD").get()
+            }
+        }
+        buildTypes.getByName("release").signingConfig = signingConfigs.getByName("release")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

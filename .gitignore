@@ -4,6 +4,8 @@ local.properties
 /mise.toml
 *.jks
 *.keystore
+/.release-signing/
+__pycache__/
 captures/
 
 build/

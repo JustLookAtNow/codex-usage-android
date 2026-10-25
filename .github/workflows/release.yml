@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare version and commit release notes
+        id: metadata
+        run: python3 .github/scripts/prepare_release.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install Android SDK components
+        run: sdkmanager 'platforms;android-35' 'build-tools;34.0.0'
+      - name: Test and lint
+        run: |
+          python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+          ./gradlew testDebugUnitTest lintDebug --no-daemon
+      - name: Restore release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for variable in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error::Missing release signing secret: $variable"
+              exit 1
+            fi
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+      - name: Build signed arm64 APK
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
+          VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
+        run: |
+          ./gradlew assembleRelease --no-daemon \
+            -PtargetAbi=arm64-v8a \
+            -PreleaseVersionName="$VERSION_NAME" \
+            -PreleaseVersionCode="$VERSION_CODE"
+      - name: Verify APK and prepare attachment
+        env:
+          APK_NAME: ${{ steps.metadata.outputs.apk_name }}
+          VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
+          VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/release/app-arm64-v8a-release.apk
+          [[ $(find app/build/outputs/apk/release -name '*.apk' | wc -l) -eq 1 ]]
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose "$apk"
+          "$ANDROID_HOME/build-tools/34.0.0/zipalign" -c -v 4 "$apk"
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "versionCode='$VERSION_CODE'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "versionName='$VERSION_NAME'" "$RUNNER_TEMP/apk-badging.txt"
+          if unzip -Z1 "$apk" | grep '^lib/' | grep -v '^lib/arm64-v8a/'; then
+            echo '::error::Unexpected native ABI in release APK'
+            exit 1
+          fi
+          mkdir -p release-assets
+          cp "$apk" "release-assets/$APK_NAME"
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          APK_NAME: ${{ steps.metadata.outputs.apk_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "release-assets/$APK_NAME" --clobber
+          else
+            gh release create "$RELEASE_TAG" "release-assets/$APK_NAME" \
+              --verify-tag --draft --title "$RELEASE_TAG" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+          gh release edit "$RELEASE_TAG" --draft=false --title "$RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: CodexUsage-Android-release-checks
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/reports/lint-results-debug.*
+            app/build/test-results/testDebugUnitTest/*.xml
