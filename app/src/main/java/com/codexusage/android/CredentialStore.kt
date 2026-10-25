@@ -8,6 +8,9 @@ import android.util.Base64
 import org.json.JSONObject
 import java.io.File
 import java.security.KeyStore
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import javax.crypto.Cipher
@@ -21,7 +24,13 @@ class CredentialStore(context: Context, private val providedKey: (() -> SecretKe
     val rootPath: String? get() = prefs.getString("path", null)
     fun description(): String = when (mode) {
         "root" -> "Root 自动读取\n${rootPath.orEmpty()}"
-        "import" -> "已手工导入 · 加密保存在本机"
+        "import" -> {
+            val expiry = runCatching { load().expiresAt }.getOrNull()?.let {
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                    .withZone(ZoneId.systemDefault()).format(Instant.ofEpochSecond(it))
+            }
+            "已手工导入 · 加密保存在本机\n过期时间：${expiry ?: "未知"}"
+        }
         else -> "尚未配置凭据"
     }
 

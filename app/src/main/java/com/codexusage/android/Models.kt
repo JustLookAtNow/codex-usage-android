@@ -13,6 +13,16 @@ class UserError(message: String) : Exception(message)
 
 // Deliberately no data-class toString(): credentials must never appear in logs.
 class Credentials(val accessToken: String, val accountId: String) {
+    // Display metadata only; the server still validates the token.
+    val expiresAt: Long? get() = try {
+        val parts = accessToken.split('.')
+        if (parts.size != 3) null else {
+            val payload = JSONObject(String(java.util.Base64.getUrlDecoder().decode(parts[1]), Charsets.UTF_8))
+            (payload.opt("exp") as? Number)?.toDouble()
+                ?.takeIf { it.isFinite() && it in 0.0..253402300799.0 }?.toLong()
+        }
+    } catch (_: Exception) { null }
+
     override fun toString() = "Credentials([redacted])"
 }
 
