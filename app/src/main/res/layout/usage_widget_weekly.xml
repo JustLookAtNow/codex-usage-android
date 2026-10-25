@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/widget_background" android:layoutDirection="ltr">
+    <LinearLayout android:baselineAligned="false" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="12dp">
+        <LinearLayout android:baselineAligned="false" android:layout_width="match_parent" android:layout_height="22dp" android:paddingStart="0dp" android:paddingEnd="32dp" android:orientation="horizontal" android:gravity="center_vertical">
+            <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_gpt" android:importantForAccessibility="no" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/widget_text" android:textSize="13sp" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:text="@string/widget_title" android:layout_weight="1" android:layout_marginStart="6dp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/widget_muted" android:textSize="10sp" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:text="@string/widget_period_weekly" />
+        </LinearLayout>
+        <LinearLayout android:baselineAligned="false" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="8dp" android:layout_marginBottom="6dp" android:orientation="horizontal">
+            <LinearLayout android:baselineAligned="false" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical">
+                <TextView android:layout_width="match_parent" android:layout_height="16dp" android:textColor="@color/widget_muted" android:textSize="10sp" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:text="@string/widget_weekly_remaining" />
+                <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+                    <ImageView android:id="@+id/widget_weekly_ring" android:contentDescription="@string/widget_weekly_remaining" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:importantForAccessibility="yes" android:visibility="gone" />
+                    <TextView android:layout_width="match_parent" android:layout_height="match_parent" android:textColor="@color/widget_weekly" android:textSize="44sp" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:text="@string/widget_unknown" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="20sp" android:autoSizeMaxTextSize="44sp" android:autoSizeStepGranularity="1sp" android:id="@+id/widget_weekly_value" android:textStyle="bold" android:gravity="center_vertical" />
+                    <ImageView android:id="@+id/widget_weekly_loading_value" android:layout_width="wrap_content" android:layout_height="match_parent" android:scaleType="centerInside" android:visibility="gone" android:importantForAccessibility="no" />
+                </FrameLayout>
+            </LinearLayout>
+            <ImageView android:layout_width="1dp" android:layout_height="match_parent" android:background="@color/widget_divider" android:importantForAccessibility="no" android:layout_marginStart="10dp" android:layout_marginEnd="14dp" />
+            <LinearLayout android:baselineAligned="false" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="vertical" android:gravity="center_vertical">
+                <LinearLayout android:baselineAligned="false" android:layout_width="match_parent" android:layout_height="18dp" android:orientation="horizontal" android:gravity="center_vertical">
+                    <ImageView android:layout_width="16dp" android:layout_height="16dp" android:src="@drawable/ic_widget_calendar" android:importantForAccessibility="no" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/widget_muted" android:textSize="10sp" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:text="@string/widget_recovery_label" android:layout_marginStart="5dp" />
+                </LinearLayout>
+                <TextView android:layout_width="match_parent" android:layout_height="26dp" android:textColor="@color/widget_muted" android:textSize="10sp" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:text="@string/widget_unknown" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="10sp" android:autoSizeMaxTextSize="18sp" android:autoSizeStepGranularity="1sp" android:id="@+id/widget_weekly_countdown" android:textStyle="bold" android:gravity="center_vertical" />
+            </LinearLayout>
+        </LinearLayout>
+        <ImageView android:id="@+id/widget_weekly_progress" android:layout_width="match_parent" android:layout_height="4dp" android:scaleType="fitXY" android:importantForAccessibility="no" android:layout_marginBottom="6dp" />
+        <ImageView android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/widget_divider" android:importantForAccessibility="no" />
+        <LinearLayout android:baselineAligned="false" android:layout_width="match_parent" android:layout_height="14dp" android:layout_marginTop="6dp" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="0dp" android:layout_height="match_parent" android:textColor="@color/widget_muted" android:textSize="10sp" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="9sp" android:autoSizeStepGranularity="1sp" android:id="@+id/widget_updated_at" android:layout_weight="1" android:gravity="center_vertical" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/widget_muted" android:textSize="7sp" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:id="@+id/widget_status" android:visibility="gone" android:ellipsize="end" android:layout_marginStart="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+    <ImageView android:id="@+id/widget_refresh" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="top|end" android:src="@drawable/ic_widget_refresh" android:padding="15dp" android:contentDescription="@string/widget_refresh_description" />
+</FrameLayout>

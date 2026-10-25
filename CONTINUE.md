@@ -1,5 +1,13 @@
 # WSL 开发接续说明
 
+- 2026-10-25 修复小部件打开应用后需返回两次的问题：旧入口使用普通显式 Intent，真机按旧启动参数复现 MainActivity 从 1 个变为 2 个。新入口使用 ACTION_MAIN／CATEGORY_LAUNCHER 及 NEW_TASK | CLEAR_TOP | SINGLE_TOP，复用已有首页；新的 launcher Intent 身份避开旧 PendingIntent 仅更新 extras、不更新启动 flags 的问题，保留 UPDATE_CURRENT，避免逐个尺寸 CANCEL_CURRENT 导致其他尺寸的入口失效。未配置时刷新图标也使用同一入口。
+- 本次修复最终执行完整测试、Lint 及 APK 构建成功：78 项测试零失败／错误、Lint 0 错误／65 条非阻断警告。入口回归覆盖 Android 9／15、三种尺寸、单周／双周期、升级前旧 PendingIntent 仍存在、重复点击及未配置入口。APK 已通过签名和 zipalign 检查并覆盖安装，2,987,907 字节，SHA-256 `ccc5df3f321a4fe83c077f0353a6abc5c8399d337ca10961d38be82f00f522d5`，保留账号及应用数据。
+- 返回修复的真机检查：实际桌面小部件在主页已留后台的情况下连续打开两次，均只有 1 个首页，返回一次到桌面。额外自动侧滑检查时手机前台已切到其他应用，未将该次自动检查记为通过；用户随后明确回复“ok，没问题了”，确认人工验收通过，已停止手机操作。
+- 2026-10-25 已完成仅周额度小部件自动布局：按主额度周期时长识别，存在 Weekly 且不存在 5h 时自动采用单周布局；5h 存在但数值未知时保留双周期，附加额度不参与切换。无需变更接口或缓存格式。Android 12+ 响应尺寸布局和旧系统缩放均接入，查询失败时保留缓存布局，清除配置后恢复空状态。
+- 单周 2×1 显示 CODEX、周剩余百分比及恢复倒计时，不显示更新时间或进度图形；4×1／4×2 浅色进度条、深色单圆环，显示最近成功查询时间（MM-dd HH:mm），本地倒计时不会修改该时间。沿用低额度配色、刷新模糊反馈及错误提示。
+- 本轮最终执行 `./gradlew testDebugUnitTest lintDebug assembleDebug --offline` 成功，76 项测试零失败／错误，覆盖 Android 9／15 及三种尺寸深浅色；Lint 为 0 错误、65 条非阻断警告。最终 APK 已通过签名及 zipalign 检查，2,923,503 字节，SHA-256 `82bd54e80628dce37aacd153be182c4a1872299b5cab1062179b81bf6fce7881`，已用 `adb install -r` 覆盖安装并保留用户数据。
+- 本次通过应用现有刷新入口验证手机实际手工导入的 Plus 账号：主周期 604800 秒、次周期为空，缓存回读及周期选择正确，成功刷新后周剩余 98%，额度／重置点详情均无错误，未存在待确认重置。手机桌面自动切换为单周布局，用户明确回复“手机上我验证过了，没问题”。未消耗重置点、未更改账号。注意手机 ChatGPT 当前会话对应另一个 Team 账号，不应以该会话代替应用导入账号做验证；不读取或输出导入凭据。
+- 新增原生布局渲染图 `docs/images/widgets/widget-weekly-only.png`，生成源为 `WeeklyWidgetTest.exportNativeWeeklyPreviews`，输出目录 `app/build/reports/widget-weekly/`。最终设计图 `design/weekly-only-widgets-2026-10-25/weekly-only-widgets.png` 已替换为原生渲染（2×1 无更新时间）；早期 imagegen 图另存为 `weekly-only-widgets-concept.png`，提示词为历史方案，最终说明见 `native-preview.txt`。README 已更新自动切换规则、时间含义、原生效果图及真机验收结果。
 - 2026-10-25 新增低余量配色：按原始剩余值判断，≤15% 红色、15%～40%（含40%）黄色，>40% 和未知额度保持各处原色。应用内各周期百分比（含附加额度）、所有尺寸小部件数字、浅色进度条、深色圆环及环内文字同步变色，额度回升后恢复；深浅色分别提供可读的警示色。进度条和刷新模糊文字改为位图以兼容旧版 RemoteViews，保留布局尺寸和填充比例。新增边界、附加额度、未知/恢复、跨进程序列化及原生渲染验证；`./gradlew testDebugUnitTest --tests '*Test' lintDebug assembleDebug --offline` 通过，共64项测试，Lint 0错误/44警告。小部件检查图在 `app/build/reports/widget-colors/`；新版 APK 已构建，尚未安装或上传。
 - 项目位置：`/home/lee/projectSpace/codex-usage-android`，已从 Windows 项目的 android 子目录迁移成独立工程，使用独立 Git 仓库及 `main` 主分支。
 - Android 8.0+；Kotlin 2.0.21、AGP 8.7.3、Gradle Wrapper 8.9、JDK 17、compile/target SDK 35、Build Tools 默认 34.0.0。

@@ -56,6 +56,20 @@ class CoreTest {
         assertEquals(usage, UsageParser.parse(cached))
     }
 
+    @Test fun weeklyOnlyResponseSurvivesCacheInEitherWindowPosition() {
+        for (key in listOf("primary_window", "secondary_window")) {
+            val other = if (key == "primary_window") "secondary_window" else "primary_window"
+            val usage = UsageParser.parse("""{"plan_type":"plus","rate_limit":{
+                "$key":{"used_percent":0,"limit_window_seconds":604800,"reset_at":1800000000},
+                "$other":null}}""")
+            val restored = UsageParser.parse(UsageParser.displayJson(usage))
+            assertEquals(usage, restored)
+            assertEquals("Weekly", restored.windows.single().label)
+            assertEquals(100.0, restored.windows.single().remaining!!, 0.0)
+            assertTrue(weeklyOnly(widgetWindows(restored)))
+        }
+    }
+
     @Test fun rootPathsCannotInjectShellCommands() {
         assertEquals("'/data/a'\"'\"'b;${'$'}(id)/auth.json'", RootCommands.quotePath("/data/a'b;${'$'}(id)/auth.json"))
         assertThrows(UserError::class.java) { RootCommands.quotePath("relative/auth.json") }

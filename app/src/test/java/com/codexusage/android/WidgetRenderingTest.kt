@@ -1,6 +1,7 @@
 package com.codexusage.android
 
 import android.app.AlarmManager
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
@@ -353,6 +354,41 @@ class WidgetRenderingTest {
         WidgetRefreshState.start(context)
         WidgetRefreshState.clear(context)
         assertFalse(WidgetRefreshState.active(context))
+    }
+
+    @Test fun widgetLaunchReusesHomeEvenWhenOldPendingIntentStillExists() {
+        // An installed widget may still hold the previous action-less PendingIntent.
+        val stale = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val app = shadowOf(RuntimeEnvironment.getApplication())
+        for (size in WidgetSize.entries) for (single in listOf(false, true)) {
+            val values: List<UsageWindow?> = if (single) listOf(null, windows[1]) else windows
+            val rings = values.mapIndexed { index, value -> UsageWidget.quotaRing(context, value?.remaining, index == 1) }
+            val view = UsageWidget.createViews(context, size, values, rings, now, "", "", true)
+                .apply(context, FrameLayout(context))
+            repeat(2) {
+                assertTrue(view.findViewById<View>(R.id.widget_root).performClick())
+                val launched = app.nextStartedActivity
+                assertEquals(MainActivity::class.java.name, launched.component!!.className)
+                assertEquals(Intent.ACTION_MAIN, launched.action)
+                assertTrue(launched.hasCategory(Intent.CATEGORY_LAUNCHER))
+                assertTrue(launched.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+                assertTrue(launched.flags and Intent.FLAG_ACTIVITY_CLEAR_TOP != 0)
+                assertTrue(launched.flags and Intent.FLAG_ACTIVITY_SINGLE_TOP != 0)
+                assertEquals(0, launched.flags and (Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK))
+            }
+        }
+        // Replacing the widget's launch action must not cancel its other size variants.
+        assertFalse(shadowOf(stale).isCanceled)
+        assertNull(shadowOf(stale).savedIntent.action)
+        val blank = listOf<UsageWindow?>(null, null)
+        val rings = blank.mapIndexed { index, _ -> UsageWidget.quotaRing(context, null, index == 1) }
+        val unconfigured = UsageWidget.createViews(context, WidgetSize.COMPACT, blank, rings, now, "请配置", "", false)
+            .apply(context, FrameLayout(context))
+        unconfigured.findViewById<View>(R.id.widget_refresh).performClick()
+        val launched = app.nextStartedActivity
+        assertEquals(Intent.ACTION_MAIN, launched.action)
+        assertTrue(launched.flags and Intent.FLAG_ACTIVITY_SINGLE_TOP != 0)
     }
 
     @Test fun missingAndExpiredDeadlinesNeverInventQuotaAndBodyOpensApp() {

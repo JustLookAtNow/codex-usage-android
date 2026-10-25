@@ -1,0 +1,11 @@
+Final native design, 2026-10-25
+
+weekly-only-widgets.png is exported by WeeklyWidgetTest.exportNativeWeeklyPreviews from the production Android RemoteViews layouts, with synthetic usage data. It supersedes the earlier imagegen concept, archived as weekly-only-widgets-concept.png.
+
+2x1: CODEX branding, weekly remaining quota, recovery countdown, refresh control; no visible update time, progress bar or ring.
+4x1 and 4x2: weekly quota, recovery information and last successful update time; progress bar in light theme and one ring in dark theme.
+
+Regenerate: ./gradlew testDebugUnitTest --tests "*WeeklyWidgetTest"
+Output: app/build/reports/widget-weekly/weekly-only-widgets.png
+README copy: docs/images/widgets/widget-weekly-only.png
+The earlier prompt.txt and revision-prompt.txt describe the historical imagegen concept, including the compact timestamp removed in the final native design.

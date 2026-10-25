@@ -88,13 +88,13 @@ class UsageWidget : AppWidgetProvider() {
             for (id in ids) {
                 val views = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     RemoteViews(WidgetSize.entries.associate { size ->
-                        SizeF(size.width, size.height) to createViews(context, size, windows, rings, now, status, detail, configured, refreshing)
+                        SizeF(size.width, size.height) to createViews(context, size, windows, rings, now, status, detail, configured, refreshing, repository.updatedAt)
                     })
                 } else {
                     val options = manager.getAppWidgetOptions(id)
                     val size = widgetSize(options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320),
                         options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 164))
-                    createViews(context, size, windows, rings, now, status, detail, configured, refreshing)
+                    createViews(context, size, windows, rings, now, status, detail, configured, refreshing, repository.updatedAt)
                 }
                 manager.updateAppWidget(id, views)
             }
@@ -104,46 +104,77 @@ class UsageWidget : AppWidgetProvider() {
 
         internal fun createViews(
             context: Context, size: WidgetSize, windows: List<UsageWindow?>, rings: List<Bitmap>,
-            now: Long, status: String, detail: String, configured: Boolean, refreshing: Boolean = false
+            now: Long, status: String, detail: String, configured: Boolean, refreshing: Boolean = false,
+            updatedAt: Long = 0
         ): RemoteViews {
-            val layout = when (size) {
+            val singleWeekly = weeklyOnly(windows)
+            val layout = if (singleWeekly) when (size) {
+                WidgetSize.LARGE -> R.layout.usage_widget_weekly
+                WidgetSize.WIDE -> R.layout.usage_widget_weekly_wide
+                WidgetSize.COMPACT -> R.layout.usage_widget_weekly_compact
+            } else when (size) {
                 WidgetSize.LARGE -> R.layout.usage_widget
                 WidgetSize.WIDE -> R.layout.usage_widget_wide
                 WidgetSize.COMPACT -> R.layout.usage_widget_compact
             }
             val views = RemoteViews(context.packageName, layout)
             val description = mutableListOf("CODEX")
+            val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
             for (index in 0..1) {
+                if (singleWeekly && index == 0) continue
                 val value = windows[index]?.remaining
                 val label = if (index == 0) "5h" else "Weekly"
                 val percent = percentage(value)
                 val countdown = recoveryCountdown(windows[index]?.resetAt, now)
-                val normalColor = context.getColor(if (size == WidgetSize.COMPACT) R.color.widget_text
+                val normalColor = context.getColor(if (singleWeekly) R.color.widget_weekly
+                    else if (size == WidgetSize.COMPACT) R.color.widget_text
                     else if (index == 0) R.color.widget_primary else R.color.widget_weekly)
                 val color = quotaColor(context, value, normalColor)
                 val valueId = if (index == 0) R.id.widget_primary_value else R.id.widget_weekly_value
                 views.setTextViewText(valueId, if (refreshing) "" else percent)
                 views.setTextColor(valueId, color)
                 val loadingId = if (index == 0) R.id.widget_primary_loading_value else R.id.widget_weekly_loading_value
-                val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
                 val showLoading = refreshing && (size == WidgetSize.COMPACT || !night)
-                if (showLoading) views.setImageViewBitmap(loadingId, quotaLoadingValue(context, value, color, size))
+                if (showLoading) views.setImageViewBitmap(loadingId, quotaLoadingValue(context, value, color, size, singleWeekly))
                 views.setViewVisibility(loadingId, if (showLoading) View.VISIBLE else View.GONE)
-                views.setTextViewText(if (index == 0) R.id.widget_primary_countdown else R.id.widget_weekly_countdown, countdown)
+                val countdownLabel = when {
+                    !singleWeekly || size == WidgetSize.LARGE -> countdown
+                    windows[index]?.resetAt == null -> context.getString(R.string.widget_recovery_unknown)
+                    else -> context.getString(R.string.widget_recovery_after, countdown)
+                }
+                views.setTextViewText(if (index == 0) R.id.widget_primary_countdown else R.id.widget_weekly_countdown, countdownLabel)
                 if (size != WidgetSize.COMPACT) {
                     val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
                     views.setImageViewBitmap(progressId, quotaProgress(context, value, color))
                     views.setContentDescription(progressId, "$label 可用 $percent")
                     views.setImageViewBitmap(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, rings[index])
                     views.setContentDescription(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, "$label 可用 $percent")
+                    if (singleWeekly) {
+                        views.setViewVisibility(valueId, if (night) View.GONE else View.VISIBLE)
+                        views.setViewVisibility(progressId, if (night) View.GONE else View.VISIBLE)
+                        views.setViewVisibility(R.id.widget_weekly_ring, if (night) View.VISIBLE else View.GONE)
+                    }
                 }
                 description += "$label 可用 $percent，恢复倒计时 $countdown"
+            }
+            if (singleWeekly) {
+                val updated = context.getString(R.string.widget_updated_at,
+                    if (updatedAt > 0) localTime(updatedAt / 1000) else context.getString(R.string.widget_unknown))
+                if (size != WidgetSize.COMPACT) views.setTextViewText(R.id.widget_updated_at, updated)
+                if (updatedAt > 0) description += updated
             }
             views.setTextViewText(R.id.widget_status, status)
             views.setViewVisibility(R.id.widget_status, if (status.isEmpty()) View.GONE else View.VISIBLE)
             views.setContentDescription(R.id.widget_status, detail)
             views.setContentDescription(R.id.widget_root, (description + detail.takeIf { it.isNotEmpty() }).filterNotNull().joinToString("。"))
-            val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            val openIntent = Intent(context, MainActivity::class.java).apply {
+                // Launcher identity avoids reusing the old, action-less PendingIntent;
+                // FLAG_UPDATE_CURRENT alone only updates its extras, not launch flags.
+                action = Intent.ACTION_MAIN
+                addCategory(Intent.CATEGORY_LAUNCHER)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            val open = PendingIntent.getActivity(context, 0, openIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             val refresh = PendingIntent.getBroadcast(context, 1, Intent(context, UsageWidget::class.java).setAction(ACTION_REFRESH), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             views.setOnClickPendingIntent(R.id.widget_root, open)
             views.setOnClickPendingIntent(R.id.widget_refresh, if (configured) refresh else open)
@@ -212,7 +243,7 @@ class UsageWidget : AppWidgetProvider() {
             return bitmap
         }
 
-        private fun quotaLoadingValue(context: Context, value: Double?, color: Int, size: WidgetSize): Bitmap {
+        private fun quotaLoadingValue(context: Context, value: Double?, color: Int, size: WidgetSize, singleWeekly: Boolean = false): Bitmap {
             val label = percentage(value)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 this.color = color
@@ -220,7 +251,7 @@ class UsageWidget : AppWidgetProvider() {
                 val textSp = when (size) {
                     WidgetSize.LARGE -> 44f
                     WidgetSize.WIDE -> 28f
-                    WidgetSize.COMPACT -> 15f
+                    WidgetSize.COMPACT -> if (singleWeekly) 25f else 15f
                 }
                 textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, textSp, context.resources.displayMetrics)
                 maskFilter = BlurMaskFilter(6f, BlurMaskFilter.Blur.NORMAL)
