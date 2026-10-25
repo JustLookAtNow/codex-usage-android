@@ -1,0 +1,9 @@
+Use case: ui-mockup.
+Edit target: the supplied generated six-widget comparison board. Make ONE targeted correction: the TOP TWO 2×1 widgets are currently much too tall and too large relative to the middle 4×1 widgets. Correct their physical dimensions and the typography inside them. Keep the attractive visual styling, all three tier headings, both themes, all data and the whole middle and bottom rows unchanged.
+Top 2×1 cards MUST have EXACTLY THE SAME HEIGHT as the middle 4×1 cards, and a compact width:height ratio of 2.25:1. At this sheet scale middle wide cards are around 624 by 158, so top compact cards MUST be 356x158. Current top cards are about 408x200, visibly oversized: REDUCE their width to 356 and height to 158. Center each smaller compact card in its column. Keep the entire sheet frame, other cards, existing heading text and labels intact. Do not enlarge the middle row or shrink the bottom row.
+Within each corrected compact card, keep three tidy horizontal lines, with genuinely smaller typography:
+Header row: small authentic knot and "CODEX" on left, refresh icon at right.
+Main row: moderately sized "86%" left, two tiny readable lines to the right "本周剩余" and "6天6小时后恢复".
+Footer: "更新于 10:24" small muted at left.
+Remove the tall vertical divider between 86% and explanation if needed for breathing room. Native sizing about 10sp header, 23sp percentage, 8sp descriptive labels, 8sp footer. No rings or progress bars inside compact cards.
+ALL text verbatim, no added text, no new quotas, no 5h. Preserve 86%, 6天6小时, 更新于 10:24 in all cards. Preserve existing large 4×2 and wide 4×1 widgets exactly. This is a scale correction for the two compact widgets only. Render a high-resolution crisp final design sheet.

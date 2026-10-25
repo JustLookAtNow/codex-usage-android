@@ -33,6 +33,18 @@ class WidgetPresentationTest {
         assertEquals(WidgetSize.LARGE, widgetSize(360, 180))
     }
 
+    @Test fun weeklyLayoutUsesWindowPresenceRatherThanPlanPositionOrPercentage() {
+        val weekly = UsageWindow("Weekly", null, null, 604800, false)
+        val five = UsageWindow("5h", null, null, 18000, false)
+        val extra = five.copy(label = "Model · 5h", additional = true)
+        assertTrue(weeklyOnly(widgetWindows(Usage("plus", listOf(weekly, extra)))))
+        assertTrue(weeklyOnly(widgetWindows(Usage("team", listOf(weekly)))))
+        assertFalse(weeklyOnly(widgetWindows(Usage(null, listOf(weekly, five)))))
+        assertFalse(weeklyOnly(widgetWindows(Usage(null, listOf(five)))))
+        assertFalse(weeklyOnly(widgetWindows(Usage(null, listOf(extra)))))
+        assertFalse(weeklyOnly(widgetWindows(null)))
+    }
+
     @Test fun periodsStayInCorrectSlotsWhenReorderedOrMissingAndExcludeExtras() {
         val five = UsageWindow("5h", 51.0, 10L, 18000, false)
         val weekly = UsageWindow("Weekly", 90.0, 20L, 604800, false)

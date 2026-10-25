@@ -17,6 +17,9 @@ internal fun widgetWindows(usage: Usage?): List<UsageWindow?> {
         main.firstOrNull { it.seconds == 604800L || it.label == "Weekly" })
 }
 
+internal fun weeklyOnly(windows: List<UsageWindow?>): Boolean =
+    windows.getOrNull(0) == null && windows.getOrNull(1) != null
+
 internal fun recoveryCountdown(resetAt: Long?, nowSeconds: Long): String {
     if (resetAt == null) return "—"
     val seconds = (resetAt - nowSeconds).coerceAtLeast(0)

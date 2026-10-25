@@ -5,6 +5,11 @@
     <string name="widget_period_weekly" translatable="false">Weekly</string>
     <string name="widget_unknown" translatable="false">—</string>
     <string name="widget_refresh_description">刷新额度</string>
+    <string name="widget_weekly_remaining">本周剩余</string>
+    <string name="widget_recovery_label">额度恢复</string>
+    <string name="widget_recovery_after">%1$s后恢复</string>
+    <string name="widget_recovery_unknown">恢复时间未提供</string>
+    <string name="widget_updated_at">更新于 %1$s</string>
     <string name="root_not_found">已获得 Root，但未找到凭据。请使用自定义路径或手工导入。</string>
     <string name="widget_add_manually">请长按桌面 → 小部件 → Codex 余量</string>
 </resources>
