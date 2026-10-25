@@ -143,8 +143,8 @@ PR、推送 `main` 或手动运行 `Android` 工作流时，自动执行单元�
 提交消息作为该版本更新日志，包含标题及正文。例如：
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 只有将 tag 推送到 GitHub 才会触发发布。`Release` 工作流先测试和 Lint，再构建、签名并上传 arm64 APK；失败时停止发布。同一 tag 重跑会更新对应 Release 和附件。
