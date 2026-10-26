@@ -75,6 +75,15 @@ class WidgetLoadingPresentationTest {
         } finally { parcel.recycle() }
     }
 
+    private fun parcel(bitmap: Bitmap): Bitmap {
+        val parcel = Parcel.obtain()
+        return try {
+            bitmap.writeToParcel(parcel, 0)
+            parcel.setDataPosition(0)
+            Bitmap.CREATOR.createFromParcel(parcel)
+        } finally { parcel.recycle() }
+    }
+
     @Test fun refreshAndRecoveryPreserveGeometryAndBlurAllContentAtActualSizes() {
         val application = RuntimeEnvironment.getApplication()
         for (night in listOf(false, true)) for (weeklyOnly in listOf(false, true)) {
@@ -107,7 +116,15 @@ class WidgetLoadingPresentationTest {
                 assertEquals(size.height.roundToInt(), blurred.height)
                 assertFalse(source.sameAs(blurred))
                 WidgetLoadingPresentation.blur(source)
-                assertTrue("Overlay must blur the entire original content", source.sameAs(blurred))
+                // Both images must cross the same native Bitmap parcel boundary. Compare
+                // visible ARGB pixels rather than the native bitmap's storage/configuration.
+                val expected = parcel(source)
+                val expectedPixels = IntArray(expected.width * expected.height)
+                val actualPixels = IntArray(blurred.width * blurred.height)
+                expected.getPixels(expectedPixels, 0, expected.width, 0, 0, expected.width, expected.height)
+                blurred.getPixels(actualPixels, 0, blurred.width, 0, 0, blurred.width, blurred.height)
+                assertArrayEquals("Whole-content blur: night=$night weeklyOnly=$weeklyOnly size=$size",
+                    expectedPixels, actualPixels)
                 assertNotNull(view.findViewById<ViewFlipper>(R.id.widget_refresh_spinner))
                 assertEquals(View.INVISIBLE, view.findViewById<View>(R.id.widget_refresh_icon).visibility)
                 assertEquals(View.GONE, view.findViewById<View>(R.id.widget_status).visibility)
