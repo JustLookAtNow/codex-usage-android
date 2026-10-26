@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowAlertDialog
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(sdk = [36])
 class AppThemeTest {
     @Before fun reset() {
         val context = RuntimeEnvironment.getApplication()

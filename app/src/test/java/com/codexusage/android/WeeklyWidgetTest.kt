@@ -8,7 +8,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.os.Build
 import android.os.Bundle
 import android.os.Parcel
 import android.view.View
@@ -29,7 +28,7 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28, 35])
+@Config(sdk = [36])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class WeeklyWidgetTest {
     private lateinit var context: Context
@@ -183,7 +182,6 @@ class WeeklyWidgetTest {
     }
 
     @Test fun exportNativeWeeklyPreviews() {
-        if (Build.VERSION.SDK_INT != 35) return
         val output = File("build/reports/widget-weekly").apply { mkdirs() }
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.create("sans-serif", Typeface.BOLD) }
         val board = Bitmap.createBitmap(1600, 1240, Bitmap.Config.ARGB_8888)

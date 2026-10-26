@@ -13,7 +13,6 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
-import android.os.Build
 import android.os.Bundle
 import android.util.SizeF
 import android.view.View
@@ -87,9 +86,8 @@ class UsageWidget : AppWidgetProvider() {
                 fun viewsFor(dimensions: SizeF): RemoteViews = createViews(context,
                     widgetSize(dimensions.width.toInt(), dimensions.height.toInt()), windows, rings,
                     now, status, detail, configured, refreshing, repository.updatedAt, dimensions)
-                val exactSizes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    BundleCompat.getParcelableArrayList(options, AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
-                } else null
+                val exactSizes = BundleCompat.getParcelableArrayList(options,
+                    AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
                 val views = if (!exactSizes.isNullOrEmpty()) {
                     RemoteViews(exactSizes.associateWith(::viewsFor))
                 } else {

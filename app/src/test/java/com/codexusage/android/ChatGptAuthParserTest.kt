@@ -9,7 +9,7 @@ import org.robolectric.annotation.Config
 import java.util.Base64
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(sdk = [36])
 class ChatGptAuthParserTest {
     private val now = 1_800_000_000_000L
     private val sessionId = "active-session"

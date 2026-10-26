@@ -19,7 +19,7 @@ import org.robolectric.annotation.Config
 import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(sdk = [36])
 class WidgetSchedulingTest {
     private lateinit var context: Context
 

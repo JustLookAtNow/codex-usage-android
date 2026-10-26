@@ -13,7 +13,7 @@ import java.net.URL
 import java.io.ByteArrayOutputStream
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(sdk = [36])
 class RepositoryTest {
     private lateinit var context: Context
     private val usageBody = """{"rate_limit":{"primary_window":{"used_percent":25,"limit_window_seconds":18000,"reset_at":1800000000},"secondary_window":{"used_percent":50,"limit_window_seconds":604800,"reset_at":1800000000}}}"""

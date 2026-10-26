@@ -16,11 +16,11 @@ val releaseKeystore = providers.environmentVariable("RELEASE_KEYSTORE_PATH")
 
 android {
     namespace = "com.codexusage.android"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.codexusage.android"
-        minSdk = 26
-        targetSdk = 35
+        minSdk = 36
+        targetSdk = 36
         versionCode = releaseVersionCode.orNull?.toInt()?.also {
             require(it in 1..2_100_000_000) { "Invalid release versionCode" }
         } ?: 1_000_001
@@ -60,6 +60,6 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
-    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("org.robolectric:robolectric:4.16.1")
     testImplementation("androidx.work:work-testing:2.9.1")
 }

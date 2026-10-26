@@ -17,7 +17,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(sdk = [36])
 class QuotaColorsTest {
     private val context: Context get() = RuntimeEnvironment.getApplication()
 

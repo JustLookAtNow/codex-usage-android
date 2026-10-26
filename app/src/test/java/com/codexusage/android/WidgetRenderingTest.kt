@@ -34,7 +34,7 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28, 35])
+@Config(sdk = [36])
 class WidgetRenderingTest {
     private lateinit var context: Context
     private val now = 1800000000L
@@ -367,10 +367,8 @@ class WidgetRenderingTest {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 180)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 80)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 80)
-            if (Build.VERSION.SDK_INT >= 31) {
-                putParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES,
-                    arrayListOf(android.util.SizeF(180f, 80f)))
-            }
+            putParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES,
+                arrayListOf(android.util.SizeF(180f, 80f)))
         }
         manager.updateAppWidgetOptions(id, options)
         WidgetRefreshState.start(context)

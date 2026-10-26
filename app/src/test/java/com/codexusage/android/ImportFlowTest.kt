@@ -22,7 +22,7 @@ import org.robolectric.shadows.ShadowAlertDialog
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(sdk = [36])
 class ImportFlowTest {
     private fun texts(view: View): List<TextView> = when (view) {
         is TextView -> listOf(view)

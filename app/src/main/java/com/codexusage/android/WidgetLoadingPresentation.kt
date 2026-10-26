@@ -49,7 +49,7 @@ internal object WidgetLoadingPresentation {
         return bitmap
     }
 
-    // Three separable box passes approximate a Gaussian blur of about 3dp, on API 26+.
+    // Three separable box passes approximate a Gaussian blur of about 3dp.
     // Premultiply channels before averaging so transparent edges retain their colors.
     internal fun blur(bitmap: Bitmap) {
         val width = bitmap.width

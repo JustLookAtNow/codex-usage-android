@@ -1,6 +1,6 @@
 # Codex 余量 · Android
 
-查看 Codex 订阅剩余额度的 Android 应用，提供随系统切换深浅色的桌面小部件。使用原生 Kotlin 开发，支持 Android 8.0（API 26）及以上。
+查看 Codex 订阅剩余额度的 Android 应用，提供随系统切换深浅色的桌面小部件。使用原生 Kotlin 开发，支持 Android 16（API 36）及以上。
 
 本项目为第三方客户端，与 OpenAI 无隶属关系。使用 ChatGPT 客户端后端接口，接口及认证格式变化可能影响可用性。
 
@@ -114,7 +114,7 @@ Root 模式只保存来源路径，每次查询重新读取源文件，不修改
 
 ## 构建与测试
 
-需要 JDK 17、Android SDK Platform 35、Build Tools 34.0.0。Gradle Wrapper 固定为 8.9，Android Gradle Plugin 为 8.7.3，无需单独安装 Gradle。
+需要 JDK 21、Android SDK Platform 36、Build Tools 35.0.0。Gradle Wrapper 固定为 8.11.1，Android Gradle Plugin 为 8.10.1，无需单独安装 Gradle。
 
 使用 Android Studio 打开项目，或设置 `ANDROID_HOME` 后执行：
 

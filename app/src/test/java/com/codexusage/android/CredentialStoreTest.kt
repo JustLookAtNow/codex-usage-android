@@ -14,7 +14,7 @@ import java.util.TimeZone
 import javax.crypto.spec.SecretKeySpec
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(sdk = [36])
 class CredentialStoreTest {
     private lateinit var context: Context
     // Only key acquisition is replaced; encryption, preferences and decryption are real.

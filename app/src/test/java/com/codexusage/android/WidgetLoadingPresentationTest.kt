@@ -31,7 +31,7 @@ import java.time.Duration
 import kotlin.math.roundToInt
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [26, 35])
+@Config(sdk = [36])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class WidgetLoadingPresentationTest {
     private val now = 1800000000L
