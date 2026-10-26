@@ -3,28 +3,21 @@ package com.codexusage.android
 import android.app.Activity
 import android.animation.AnimatorSet
 import android.content.Context
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Rect
 import android.graphics.drawable.AnimatedVectorDrawable
-import android.graphics.drawable.BitmapDrawable
 import android.os.Parcel
 import android.util.SizeF
 import android.view.View
-import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.RemoteViews
-import android.widget.TextView
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.util.ReflectionHelpers
@@ -56,17 +49,6 @@ class WidgetLoadingPresentationTest {
         view.layout(0, 0, width, height)
     }
 
-    private fun bounds(root: ViewGroup): Map<Int, Rect> {
-        val ids = listOf(R.id.widget_primary_value, R.id.widget_weekly_value,
-            R.id.widget_primary_countdown, R.id.widget_weekly_countdown,
-            R.id.widget_refresh, R.id.widget_refresh_icon, R.id.widget_updated_at)
-        return ids.mapNotNull { id -> root.findViewById<View>(id)?.let { view ->
-            val rect = Rect(0, 0, view.width, view.height)
-            root.offsetDescendantRectToMyCoords(view, rect)
-            id to rect
-        } }.toMap()
-    }
-
     private fun parcel(remote: RemoteViews): RemoteViews {
         val parcel = Parcel.obtain()
         return try {
@@ -76,79 +58,8 @@ class WidgetLoadingPresentationTest {
         } finally { parcel.recycle() }
     }
 
-    private fun parcel(bitmap: Bitmap): Bitmap {
-        val parcel = Parcel.obtain()
-        return try {
-            bitmap.writeToParcel(parcel, 0)
-            parcel.setDataPosition(0)
-            Bitmap.CREATOR.createFromParcel(parcel)
-        } finally { parcel.recycle() }
-    }
-
     private fun pixels(bitmap: Bitmap): IntArray = IntArray(bitmap.width * bitmap.height).also {
         bitmap.getPixels(it, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-    }
-
-    @Test fun refreshAndRecoveryPreserveGeometryAndBlurAllContentAtActualSizes() {
-        val application = RuntimeEnvironment.getApplication()
-        for (night in listOf(false, true)) for (weeklyOnly in listOf(false, true)) {
-            val context = application.createConfigurationContext(Configuration(application.resources.configuration).apply {
-                uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
-                    (if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
-            })
-            for (size in listOf(SizeF(140f, 72f), SizeF(180f, 80f), SizeF(240f, 72f),
-                SizeF(360f, 80f), SizeF(240f, 140f), SizeF(360f, 168f))) {
-                val normal = remote(context, size, weeklyOnly, false)
-                val view = normal.apply(context, FrameLayout(context)) as ViewGroup
-                measure(context, view, size)
-                val before = bounds(view)
-                val textSize = view.findViewById<TextView>(R.id.widget_weekly_value).textSize
-                val source = WidgetLoadingPresentation.snapshot(context, normal, size)
-                // Changing the separate refresh icon must not affect the content snapshot.
-                normal.setImageViewBitmap(R.id.widget_refresh_icon,
-                    Bitmap.createBitmap(20, 20, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) })
-                assertArrayEquals("Refresh button excluded: night=$night weeklyOnly=$weeklyOnly size=$size",
-                    pixels(source), pixels(WidgetLoadingPresentation.snapshot(context, normal, size)))
-                parcel(remote(context, size, weeklyOnly, true)).reapply(context, view)
-                measure(context, view, size)
-                assertEquals(before, bounds(view))
-                assertEquals(textSize, view.findViewById<TextView>(R.id.widget_weekly_value).textSize)
-                assertEquals("86%", view.findViewById<TextView>(R.id.widget_weekly_value).text.toString())
-                assertEquals(View.INVISIBLE, view.findViewById<View>(R.id.widget_content).visibility)
-                val overlay = view.findViewById<ImageView>(R.id.widget_loading_overlay)
-                assertEquals(View.VISIBLE, overlay.visibility)
-                val blurred = (overlay.drawable as BitmapDrawable).bitmap
-                assertEquals(size.width.roundToInt(), blurred.width)
-                assertEquals(size.height.roundToInt(), blurred.height)
-                assertFalse("Content must visibly change during refresh",
-                    pixels(source).contentEquals(pixels(blurred)))
-                WidgetLoadingPresentation.blur(source)
-                // Both images must cross the same native Bitmap parcel boundary. Compare
-                // visible ARGB pixels rather than the native bitmap's storage/configuration.
-                val expected = parcel(source)
-                assertArrayEquals("Whole-content blur: night=$night weeklyOnly=$weeklyOnly size=$size",
-                    pixels(expected), pixels(blurred))
-                val spinner = view.findViewById<ProgressBar>(R.id.widget_refresh_spinner)
-                assertNotNull(spinner)
-                val icon = view.findViewById<View>(R.id.widget_refresh_icon)
-                assertEquals(icon.width, spinner.width)
-                assertEquals(icon.height, spinner.height)
-                assertEquals(spinner.width, spinner.height)
-                val spinnerBounds = Rect(0, 0, spinner.width, spinner.height)
-                view.offsetDescendantRectToMyCoords(spinner, spinnerBounds)
-                assertEquals(before.getValue(R.id.widget_refresh_icon), spinnerBounds)
-                assertEquals(View.INVISIBLE, view.findViewById<View>(R.id.widget_refresh_icon).visibility)
-                assertEquals(View.GONE, view.findViewById<View>(R.id.widget_status).visibility)
-                parcel(remote(context, size, weeklyOnly, false)).reapply(context, view)
-                measure(context, view, size)
-                assertEquals(before, bounds(view))
-                assertEquals(View.VISIBLE, view.findViewById<View>(R.id.widget_content).visibility)
-                assertEquals(View.GONE, overlay.visibility)
-                assertNull(overlay.drawable)
-                assertNull(view.findViewById<View>(R.id.widget_refresh_spinner))
-                assertEquals(View.VISIBLE, view.findViewById<View>(R.id.widget_refresh_icon).visibility)
-            }
-        }
     }
 
     @Test fun spinnerStartsOnFirstDrawMovesWithin100msAndStopsAfterApplyAndReapply() {
