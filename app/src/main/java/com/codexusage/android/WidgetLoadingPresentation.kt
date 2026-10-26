@@ -25,8 +25,8 @@ internal object WidgetLoadingPresentation {
         views.setViewVisibility(R.id.widget_loading_overlay, View.VISIBLE)
         views.setViewVisibility(R.id.widget_content, View.INVISIBLE)
         views.setViewVisibility(R.id.widget_refresh_icon, View.INVISIBLE)
-        // Attaching a fresh auto-starting flipper works both on apply and reapply. Removing
-        // it when finished detaches the view and cancels its local animation callbacks.
+        // ProgressBar starts its animated vector on the first draw, including on reapply.
+        // Removing the view when finished also stops the drawable's animation.
         views.addView(R.id.widget_refresh_animation,
             RemoteViews(context.packageName, R.layout.widget_refresh_spinner))
     }

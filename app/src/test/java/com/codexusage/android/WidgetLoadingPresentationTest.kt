@@ -1,33 +1,34 @@
 package com.codexusage.android
 
 import android.app.Activity
+import android.animation.AnimatorSet
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Rect
+import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.BitmapDrawable
-import android.os.Looper
 import android.os.Parcel
 import android.util.SizeF
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.RemoteViews
 import android.widget.TextView
-import android.widget.ViewFlipper
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.time.Duration
+import org.robolectric.util.ReflectionHelpers
+import java.io.File
 import kotlin.math.roundToInt
 
 @RunWith(RobolectricTestRunner::class)
@@ -127,7 +128,15 @@ class WidgetLoadingPresentationTest {
                 val expected = parcel(source)
                 assertArrayEquals("Whole-content blur: night=$night weeklyOnly=$weeklyOnly size=$size",
                     pixels(expected), pixels(blurred))
-                assertNotNull(view.findViewById<ViewFlipper>(R.id.widget_refresh_spinner))
+                val spinner = view.findViewById<ProgressBar>(R.id.widget_refresh_spinner)
+                assertNotNull(spinner)
+                val icon = view.findViewById<View>(R.id.widget_refresh_icon)
+                assertEquals(icon.width, spinner.width)
+                assertEquals(icon.height, spinner.height)
+                assertEquals(spinner.width, spinner.height)
+                val spinnerBounds = Rect(0, 0, spinner.width, spinner.height)
+                view.offsetDescendantRectToMyCoords(spinner, spinnerBounds)
+                assertEquals(before.getValue(R.id.widget_refresh_icon), spinnerBounds)
                 assertEquals(View.INVISIBLE, view.findViewById<View>(R.id.widget_refresh_icon).visibility)
                 assertEquals(View.GONE, view.findViewById<View>(R.id.widget_status).visibility)
                 parcel(remote(context, size, weeklyOnly, false)).reapply(context, view)
@@ -142,7 +151,7 @@ class WidgetLoadingPresentationTest {
         }
     }
 
-    @Test fun spinnerRunsInHostAfterApplyAndReapplyAndIsRemovedOnCompletion() {
+    @Test fun spinnerStartsOnFirstDrawMovesWithin100msAndStopsAfterApplyAndReapply() {
         Robolectric.buildActivity(Activity::class.java).setup().use { controller ->
             val context = controller.get()
             val size = SizeF(360f, 168f)
@@ -150,15 +159,33 @@ class WidgetLoadingPresentationTest {
             controller.get().setContentView(host)
             val view = parcel(remote(context, size, false, true)).apply(context, host)
             host.addView(view)
+            fun drawIcon(spinner: ProgressBar): Bitmap {
+                val bitmap = Bitmap.createBitmap(spinner.width, spinner.height, Bitmap.Config.ARGB_8888)
+                spinner.draw(Canvas(bitmap))
+                return bitmap
+            }
             repeat(2) {
-                val spinner = view.findViewById<ViewFlipper>(R.id.widget_refresh_spinner)
-                assertTrue(spinner.isFlipping)
-                assertEquals(1000L, spinner.inAnimation.duration)
-                val first = spinner.displayedChild
-                shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1100))
-                assertNotEquals(first, spinner.displayedChild)
+                measure(context, view, size)
+                val spinner = view.findViewById<ProgressBar>(R.id.widget_refresh_spinner)
+                val animated = spinner.indeterminateDrawable as AnimatedVectorDrawable
+                // The offscreen test canvas has no RenderThread. Select the framework's
+                // UI animation backend without starting it; ProgressBar must do that on draw.
+                ReflectionHelpers.callInstanceMethod<Any>(animated, "forceAnimationOnUI")
+                val first = drawIcon(spinner)
+                assertTrue("Vector animation must start on the first draw", animated.isRunning)
+                // Offscreen rendering has no display-vsync clock. Advance the real XML
+                // animator to 100ms without starting it or changing its target/property.
+                val backend = ReflectionHelpers.getField<Any>(animated, "mAnimatorSet")
+                ReflectionHelpers.getField<AnimatorSet>(backend, "mSet").currentPlayTime = 100
+                val rotated = drawIcon(spinner)
+                assertFalse("Refresh icon must move before the old one-second flip delay",
+                    pixels(first).contentEquals(pixels(rotated)))
+                val output = File("build/reports/widget-refresh").apply { mkdirs() }
+                File(output, "first-frame-$it.png").outputStream().use { first.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                File(output, "after-100ms-$it.png").outputStream().use { rotated.compress(Bitmap.CompressFormat.PNG, 100, it) }
                 parcel(remote(context, size, false, false)).reapply(context, view)
                 assertNull(spinner.parent)
+                assertFalse("Removing the loading view must stop rotation", animated.isRunning)
                 assertNull(view.findViewById<View>(R.id.widget_refresh_spinner))
                 parcel(remote(context, size, false, true)).reapply(context, view)
             }
