@@ -84,6 +84,10 @@ class WidgetLoadingPresentationTest {
         } finally { parcel.recycle() }
     }
 
+    private fun pixels(bitmap: Bitmap): IntArray = IntArray(bitmap.width * bitmap.height).also {
+        bitmap.getPixels(it, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+    }
+
     @Test fun refreshAndRecoveryPreserveGeometryAndBlurAllContentAtActualSizes() {
         val application = RuntimeEnvironment.getApplication()
         for (night in listOf(false, true)) for (weeklyOnly in listOf(false, true)) {
@@ -102,7 +106,8 @@ class WidgetLoadingPresentationTest {
                 // Changing the separate refresh icon must not affect the content snapshot.
                 normal.setImageViewBitmap(R.id.widget_refresh_icon,
                     Bitmap.createBitmap(20, 20, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) })
-                assertTrue(source.sameAs(WidgetLoadingPresentation.snapshot(context, normal, size)))
+                assertArrayEquals("Refresh button excluded: night=$night weeklyOnly=$weeklyOnly size=$size",
+                    pixels(source), pixels(WidgetLoadingPresentation.snapshot(context, normal, size)))
                 parcel(remote(context, size, weeklyOnly, true)).reapply(context, view)
                 measure(context, view, size)
                 assertEquals(before, bounds(view))
@@ -114,17 +119,14 @@ class WidgetLoadingPresentationTest {
                 val blurred = (overlay.drawable as BitmapDrawable).bitmap
                 assertEquals(size.width.roundToInt(), blurred.width)
                 assertEquals(size.height.roundToInt(), blurred.height)
-                assertFalse(source.sameAs(blurred))
+                assertFalse("Content must visibly change during refresh",
+                    pixels(source).contentEquals(pixels(blurred)))
                 WidgetLoadingPresentation.blur(source)
                 // Both images must cross the same native Bitmap parcel boundary. Compare
                 // visible ARGB pixels rather than the native bitmap's storage/configuration.
                 val expected = parcel(source)
-                val expectedPixels = IntArray(expected.width * expected.height)
-                val actualPixels = IntArray(blurred.width * blurred.height)
-                expected.getPixels(expectedPixels, 0, expected.width, 0, 0, expected.width, expected.height)
-                blurred.getPixels(actualPixels, 0, blurred.width, 0, 0, blurred.width, blurred.height)
                 assertArrayEquals("Whole-content blur: night=$night weeklyOnly=$weeklyOnly size=$size",
-                    expectedPixels, actualPixels)
+                    pixels(expected), pixels(blurred))
                 assertNotNull(view.findViewById<ViewFlipper>(R.id.widget_refresh_spinner))
                 assertEquals(View.INVISIBLE, view.findViewById<View>(R.id.widget_refresh_icon).visibility)
                 assertEquals(View.GONE, view.findViewById<View>(R.id.widget_status).visibility)
