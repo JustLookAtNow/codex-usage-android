@@ -55,7 +55,7 @@ class WeeklyWidgetTest {
     private fun remote(themed: Context, size: WidgetSize, window: UsageWindow = weekly,
                        refreshing: Boolean = false, status: String = "", nowSeconds: Long = now): RemoteViews {
         val windows = listOf(null, window)
-        val rings = windows.mapIndexed { index, value -> UsageWidget.quotaRing(themed, value?.remaining, index == 1, refreshing) }
+        val rings = windows.mapIndexed { index, value -> UsageWidget.quotaRing(themed, value?.remaining, index == 1) }
         return UsageWidget.createViews(themed, size, windows, rings, nowSeconds, status, "", true, refreshing, updatedAt)
     }
 
@@ -116,7 +116,7 @@ class WeeklyWidgetTest {
             val themed = themed(night)
             var view: View? = null
             for (value in listOf(15.0, 40.0, 86.0, null)) for (refreshing in listOf(true, false)) {
-                val sent = remote(themed, size, weekly.copy(remaining = value), refreshing, if (refreshing) "刷新中" else "缓存 · !")
+                val sent = remote(themed, size, weekly.copy(remaining = value), refreshing, "缓存 · !")
                 val parcel = Parcel.obtain()
                 val received = try {
                     sent.writeToParcel(parcel, 0)
@@ -125,11 +125,11 @@ class WeeklyWidgetTest {
                 } finally { parcel.recycle() }
                 if (view == null) view = received.apply(themed, FrameLayout(themed)) else received.reapply(themed, view)
                 val text = view!!.findViewById<TextView>(R.id.widget_weekly_value)
-                assertEquals(if (refreshing) "" else percentage(value), text.text.toString())
+                assertEquals(percentage(value), text.text.toString())
                 assertEquals(quotaColor(themed, value, themed.getColor(R.color.widget_weekly)), text.currentTextColor)
-                val loader = view.findViewById<ImageView>(R.id.widget_weekly_loading_value)
-                assertEquals(if (refreshing && (!night || size == WidgetSize.COMPACT)) View.VISIBLE else View.GONE, loader.visibility)
-                assertEquals(if (refreshing) "刷新中" else "缓存 · !", view.findViewById<TextView>(R.id.widget_status).text.toString())
+                val loader = view.findViewById<ImageView>(R.id.widget_loading_overlay)
+                assertEquals(if (refreshing) View.VISIBLE else View.GONE, loader.visibility)
+                assertEquals("缓存 · !", view.findViewById<TextView>(R.id.widget_status).text.toString())
                 if (size != WidgetSize.COMPACT) assertEquals("更新于 ${localTime(updatedAt / 1000)}", view.findViewById<TextView>(R.id.widget_updated_at).text.toString())
             }
             val nextTick = remote(themed, size, nowSeconds = now + 60).apply(themed, FrameLayout(themed))

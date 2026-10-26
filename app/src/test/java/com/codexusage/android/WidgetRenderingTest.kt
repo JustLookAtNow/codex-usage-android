@@ -148,25 +148,24 @@ class WidgetRenderingTest {
 
     @Test
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun refreshImmediatelyShowsBlurredQuotaAndStatusInEverySizeAndTheme() {
+    fun refreshShowsWholeContentOverlayWithoutChangingTextInEverySizeAndTheme() {
         for (night in listOf(false, true)) {
             val config = Configuration(context.resources.configuration).apply {
                 uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
                     (if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
             }
             val themed = context.createConfigurationContext(config)
-            val rings = windows.mapIndexed { index, window -> UsageWidget.quotaRing(themed, window.remaining, index == 1, true) }
-            assertFalse(rings[0].sameAs(UsageWidget.quotaRing(themed, 51.0, false)))
+            val rings = windows.mapIndexed { index, window -> UsageWidget.quotaRing(themed, window.remaining, index == 1) }
+            assertTrue(rings[0].sameAs(UsageWidget.quotaRing(themed, 51.0, false)))
             for (size in WidgetSize.entries) {
-                val remote = UsageWidget.createViews(themed, size, windows, rings, now, "刷新中", "正在刷新额度", true, true)
+                val remote = UsageWidget.createViews(themed, size, windows, rings, now, "", "正在刷新额度", true, true)
                 val view = remote.apply(themed, FrameLayout(themed))
-                assertEquals("刷新中", view.findViewById<TextView>(R.id.widget_status).text.toString())
-                assertEquals(View.VISIBLE, view.findViewById<TextView>(R.id.widget_status).visibility)
-                assertEquals("", view.findViewById<TextView>(R.id.widget_primary_value).text.toString())
-                val loading = view.findViewById<ImageView>(R.id.widget_primary_loading_value)
-                val showLoading = !night || size == WidgetSize.COMPACT
-                assertEquals(if (showLoading) View.VISIBLE else View.GONE, loading.visibility)
-                if (showLoading) assertNotNull(loading.drawable)
+                assertEquals("", view.findViewById<TextView>(R.id.widget_status).text.toString())
+                assertEquals(View.GONE, view.findViewById<TextView>(R.id.widget_status).visibility)
+                assertEquals("51%", view.findViewById<TextView>(R.id.widget_primary_value).text.toString())
+                val loading = view.findViewById<ImageView>(R.id.widget_loading_overlay)
+                assertEquals(View.VISIBLE, loading.visibility)
+                assertNotNull(loading.drawable)
                 assertEquals("2小时55分", view.findViewById<TextView>(R.id.widget_primary_countdown).text.toString())
             }
         }
@@ -186,7 +185,7 @@ class WidgetRenderingTest {
                 for ((primary, weekly) in listOf(15.0 to 40.0, 15.0001 to 40.0001, 0.0 to null, 100.0 to 90.0)) {
                     val values = listOf(windows[0].copy(remaining = primary), windows[1].copy(remaining = weekly))
                     for (refreshing in listOf(true, false)) {
-                        val rings = values.mapIndexed { index, window -> UsageWidget.quotaRing(themed, window.remaining, index == 1, refreshing) }
+                        val rings = values.mapIndexed { index, window -> UsageWidget.quotaRing(themed, window.remaining, index == 1) }
                         val remote = UsageWidget.createViews(themed, size, values, rings, now, "", "", true, refreshing)
                         val parcel = Parcel.obtain()
                         val received = try {
@@ -202,14 +201,13 @@ class WidgetRenderingTest {
                             val color = quotaColor(themed, value, normal)
                             val text = view!!.findViewById<TextView>(if (index == 0) R.id.widget_primary_value else R.id.widget_weekly_value)
                             assertEquals(color, text.currentTextColor)
-                            assertEquals(if (refreshing) "" else percentage(value), text.text.toString())
-                            val loading = view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_loading_value else R.id.widget_weekly_loading_value)
-                            val showLoading = refreshing && (!night || size == WidgetSize.COMPACT)
+                            assertEquals(percentage(value), text.text.toString())
+                            val loading = view.findViewById<ImageView>(R.id.widget_loading_overlay)
+                            val showLoading = refreshing
                             assertEquals(if (showLoading) View.VISIBLE else View.GONE, loading.visibility)
-                            if (showLoading) {
-                                val pixels = (loading.drawable as BitmapDrawable).bitmap
-                                assertTrue("Blurred quota must use the current color", hasColor(pixels, color, 0, 0, pixels.width, pixels.height))
-                            }
+                            if (showLoading) assertNotNull(loading.drawable)
+                            assertEquals(if (refreshing) View.INVISIBLE else View.VISIBLE,
+                                view.findViewById<View>(R.id.widget_content).visibility)
                             if (size != WidgetSize.COMPACT) {
                                 val progress = view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress)
                                 val pixels = (progress.drawable as BitmapDrawable).bitmap
@@ -334,14 +332,15 @@ class WidgetRenderingTest {
         WidgetRefreshState.start(context)
         UsageWidget.updateAll(context)
         assertTrue(WidgetRefreshState.active(context))
-        assertEquals("刷新中", widgets.getViewFor(id).findViewById<TextView>(R.id.widget_status).text.toString())
+        assertFalse(widgets.getViewFor(id).findViewById<TextView>(R.id.widget_status).text.contains("刷新中"))
+        assertEquals(View.VISIBLE, widgets.getViewFor(id).findViewById<View>(R.id.widget_loading_overlay).visibility)
         val worker = TestListenableWorkerBuilder<RefreshWorker>(context)
             .setInputData(workDataOf(RefreshWorker.MANUAL_REFRESH to true)).build()
         worker.doWork()
         assertFalse(WidgetRefreshState.active(context))
         val restored = widgets.getViewFor(id)
         assertEquals("51%", restored.findViewById<TextView>(R.id.widget_primary_value).text.toString())
-        assertEquals(View.GONE, restored.findViewById<ImageView>(R.id.widget_primary_loading_value).visibility)
+        assertEquals(View.GONE, restored.findViewById<ImageView>(R.id.widget_loading_overlay).visibility)
         assertTrue(restored.findViewById<TextView>(R.id.widget_status).text.contains("缓存"))
     }
 
@@ -354,6 +353,47 @@ class WidgetRenderingTest {
         WidgetRefreshState.start(context)
         WidgetRefreshState.clear(context)
         assertFalse(WidgetRefreshState.active(context))
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun refreshUsesLauncherDimensionsAndRemovesFeedbackAfterExpiryAndConfigurationClear() {
+        val manager = AppWidgetManager.getInstance(context)
+        val widgets = shadowOf(manager)
+        val id = widgets.createWidget(UsageWidget::class.java, R.layout.usage_widget)
+        context.getSharedPreferences("credentials", Context.MODE_PRIVATE).edit().putString("mode", "test").commit()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 180)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 180)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 80)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 80)
+            if (Build.VERSION.SDK_INT >= 31) {
+                putParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES,
+                    arrayListOf(android.util.SizeF(180f, 80f)))
+            }
+        }
+        manager.updateAppWidgetOptions(id, options)
+        WidgetRefreshState.start(context)
+        UsageWidget.updateAll(context)
+        val loading = widgets.getViewFor(id).findViewById<ImageView>(R.id.widget_loading_overlay)
+        val bitmap = (loading.drawable as BitmapDrawable).bitmap
+        assertEquals(180, bitmap.width)
+        assertEquals(80, bitmap.height)
+        assertFalse(widgets.getViewFor(id).findViewById<TextView>(R.id.widget_status).text.contains("刷新中"))
+
+        context.getSharedPreferences("widget_refresh", Context.MODE_PRIVATE).edit()
+            .putLong("until", System.currentTimeMillis() - 1).commit()
+        UsageWidget.updateAll(context)
+        assertEquals(View.GONE, widgets.getViewFor(id).findViewById<View>(R.id.widget_loading_overlay).visibility)
+        assertNull(widgets.getViewFor(id).findViewById<View>(R.id.widget_refresh_spinner))
+        WidgetRefreshState.start(context)
+        CredentialStore(context).clear()
+        UsageWidget.updateAll(context)
+        val unconfigured = widgets.getViewFor(id)
+        assertEquals(View.VISIBLE, unconfigured.findViewById<View>(R.id.widget_content).visibility)
+        assertEquals(View.GONE, unconfigured.findViewById<View>(R.id.widget_loading_overlay).visibility)
+        assertNull(unconfigured.findViewById<View>(R.id.widget_refresh_spinner))
+        assertEquals("请配置", unconfigured.findViewById<TextView>(R.id.widget_status).text.toString())
     }
 
     @Test fun widgetLaunchReusesHomeEvenWhenOldPendingIntentStillExists() {

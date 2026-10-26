@@ -81,7 +81,7 @@ class WidgetSchedulingTest {
         assertEquals("—", view.findViewById<TextView>(R.id.widget_weekly_value).text.toString())
         assertEquals("—", view.findViewById<TextView>(R.id.widget_primary_countdown).text.toString())
         assertEquals("请配置", view.findViewById<TextView>(R.id.widget_status).text.toString())
-        view.findViewById<android.widget.ImageView>(R.id.widget_refresh).performClick()
+        view.findViewById<android.view.View>(R.id.widget_refresh).performClick()
         assertEquals(MainActivity::class.java.name, shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.component!!.className)
     }
 }
