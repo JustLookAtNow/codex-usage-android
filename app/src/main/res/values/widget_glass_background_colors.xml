@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_glass_background_top">#99F2FAF7</color>
+    <color name="widget_glass_background_center">#99EDF6F2</color>
+    <color name="widget_glass_background_bottom">#99E6F0EC</color>
+    <color name="widget_glass_background_border">#99D4E7DF</color>
+</resources>

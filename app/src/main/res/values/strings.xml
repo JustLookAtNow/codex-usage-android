@@ -12,4 +12,7 @@
     <string name="widget_updated_at">更新于 %1$s</string>
     <string name="root_not_found">已获得 Root，但未找到凭据。请使用自定义路径或手工导入。</string>
     <string name="widget_add_manually">请长按桌面 → 小部件 → Codex 余量</string>
+    <string name="glass_widget_name">Codex 余量 · 透明玻璃</string>
+    <string name="glass_widget_add_manually">请长按桌面 → 小部件 → Codex 余量 · 透明玻璃</string>
+    <string name="glass_blur_module_description">为 ColorOS 系统桌面的透明玻璃小部件启用背景模糊</string>
 </resources>

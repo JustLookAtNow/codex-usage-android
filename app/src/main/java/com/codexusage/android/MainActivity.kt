@@ -100,7 +100,8 @@ class MainActivity : Activity() {
         resetDetails = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(resetDetails, LinearLayout.LayoutParams(-1, -2))
         resetStatus = text("", 13, R.color.app_muted)
-        button("添加桌面小部件") { pinWidget() }
+        button("添加原有小部件") { pinWidget(glass = false) }
+        button("添加透明玻璃小部件") { pinWidget(glass = true) }
         text("登录凭据", 21, bold = true)
         source = text("", 13, R.color.app_muted)
         feedback = text("", 13, R.color.app_accent)
@@ -352,12 +353,13 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun pinWidget() {
+    private fun pinWidget(glass: Boolean) {
         val manager = getSystemService(AppWidgetManager::class.java)
         if (manager.isRequestPinAppWidgetSupported) {
-            manager.requestPinAppWidget(ComponentName(this, UsageWidget::class.java), null, null)
+            val provider = if (glass) GlassUsageWidget::class.java else UsageWidget::class.java
+            manager.requestPinAppWidget(ComponentName(this, provider), null, null)
             feedback.text = "请在桌面确认添加小部件"
-        } else feedback.setText(R.string.widget_add_manually)
+        } else feedback.setText(if (glass) R.string.glass_widget_add_manually else R.string.widget_add_manually)
     }
 
     private fun updateButtons() {

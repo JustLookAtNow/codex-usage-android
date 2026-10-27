@@ -5,6 +5,8 @@ internal enum class WidgetSize(val width: Float, val height: Float) {
     COMPACT(140f, 64f), WIDE(240f, 64f), LARGE(240f, 140f)
 }
 
+internal enum class WidgetStyle { STANDARD, GLASS }
+
 internal fun widgetSize(width: Int, height: Int): WidgetSize = when {
     width >= 240 && height >= 140 -> WidgetSize.LARGE
     width >= 240 -> WidgetSize.WIDE

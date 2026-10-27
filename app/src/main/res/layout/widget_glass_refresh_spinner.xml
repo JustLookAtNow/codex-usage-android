@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ProgressBar xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_refresh_spinner"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:padding="0dp" android:minWidth="0dp" android:minHeight="0dp"
+    android:indeterminate="true" android:indeterminateOnly="true"
+    android:indeterminateDrawable="@drawable/widget_glass_refresh_animated"
+    android:indeterminateTint="@color/widget_glass_muted"
+    android:importantForAccessibility="no" />

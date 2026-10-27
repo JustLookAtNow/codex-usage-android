@@ -26,7 +26,7 @@ import java.util.Locale
 fun percentage(value: Double?): String = value?.let { String.format(Locale.getDefault(), "%.0f%%", it) } ?: "—"
 fun localTime(epochSeconds: Long): String = DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochSecond(epochSeconds))
 
-class UsageWidget : AppWidgetProvider() {
+open class UsageWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         updateAll(context)
         RefreshWorker.schedule(context)
@@ -38,7 +38,7 @@ class UsageWidget : AppWidgetProvider() {
     }
 
     override fun onDeleted(context: Context, ids: IntArray) { updateAll(context) }
-    override fun onDisabled(context: Context) { WidgetCountdown.cancel(context) }
+    override fun onDisabled(context: Context) { updateAll(context) }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
@@ -57,7 +57,10 @@ class UsageWidget : AppWidgetProvider() {
 
         fun updateAll(context: Context) = synchronized(ConfigurationLock) {
             val manager = AppWidgetManager.getInstance(context)
-            val ids = manager.getAppWidgetIds(ComponentName(context, UsageWidget::class.java))
+            val idsByStyle = mapOf(
+                WidgetStyle.STANDARD to manager.getAppWidgetIds(ComponentName(context, UsageWidget::class.java)),
+                WidgetStyle.GLASS to manager.getAppWidgetIds(ComponentName(context, GlassUsageWidget::class.java))
+            )
             val repository = UsageRepository(context)
             val configured = CredentialStore(context).mode != null
             val usage = repository.usage().takeIf { configured }
@@ -80,33 +83,37 @@ class UsageWidget : AppWidgetProvider() {
                 ).joinToString("，")
                 else -> ""
             }
-            val rings = windows.mapIndexed { index, window -> quotaRing(context, window?.remaining, index == 1) }
-            for (id in ids) {
-                val options = manager.getAppWidgetOptions(id)
-                fun viewsFor(dimensions: SizeF): RemoteViews = createViews(context,
-                    widgetSize(dimensions.width.toInt(), dimensions.height.toInt()), windows, rings,
-                    now, status, detail, configured, refreshing, repository.updatedAt, dimensions)
-                val exactSizes = BundleCompat.getParcelableArrayList(options,
-                    AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
-                val views = if (!exactSizes.isNullOrEmpty()) {
-                    RemoteViews(exactSizes.associateWith(::viewsFor))
-                } else {
-                    val portrait = SizeF(options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320).toFloat(),
-                        options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 164).toFloat())
-                    val landscape = SizeF(options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, portrait.width.toInt()).toFloat(),
-                        options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, portrait.height.toInt()).toFloat())
-                    RemoteViews(viewsFor(landscape), viewsFor(portrait))
+            for ((style, ids) in idsByStyle) {
+                if (ids.isEmpty()) continue
+                val rings = windows.mapIndexed { index, window -> quotaRing(context, window?.remaining, index == 1, style) }
+                for (id in ids) {
+                    val options = manager.getAppWidgetOptions(id)
+                    fun viewsFor(dimensions: SizeF): RemoteViews = createViews(context,
+                        widgetSize(dimensions.width.toInt(), dimensions.height.toInt()), windows, rings,
+                        now, status, detail, configured, refreshing, repository.updatedAt, dimensions, style)
+                    val exactSizes = BundleCompat.getParcelableArrayList(options,
+                        AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
+                    val views = if (!exactSizes.isNullOrEmpty()) {
+                        RemoteViews(exactSizes.associateWith(::viewsFor))
+                    } else {
+                        val portrait = SizeF(options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320).toFloat(),
+                            options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 164).toFloat())
+                        val landscape = SizeF(options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, portrait.width.toInt()).toFloat(),
+                            options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, portrait.height.toInt()).toFloat())
+                        RemoteViews(viewsFor(landscape), viewsFor(portrait))
+                    }
+                    manager.updateAppWidget(id, views)
                 }
-                manager.updateAppWidget(id, views)
             }
-            WidgetCountdown.schedule(context, ids.isNotEmpty() && configured &&
+            WidgetCountdown.schedule(context, idsByStyle.values.any { it.isNotEmpty() } && configured &&
                 (refreshing || windows.any { (it?.resetAt ?: 0) > now }))
         }
 
         internal fun createViews(
             context: Context, size: WidgetSize, windows: List<UsageWindow?>, rings: List<Bitmap>,
             now: Long, status: String, detail: String, configured: Boolean, refreshing: Boolean = false,
-            updatedAt: Long = 0, displaySize: SizeF = SizeF(size.width, size.height)
+            updatedAt: Long = 0, displaySize: SizeF = SizeF(size.width, size.height),
+            style: WidgetStyle = WidgetStyle.STANDARD
         ): RemoteViews {
             val singleWeekly = weeklyOnly(windows)
             val layout = if (singleWeekly) when (size) {
@@ -119,6 +126,7 @@ class UsageWidget : AppWidgetProvider() {
                 WidgetSize.COMPACT -> R.layout.usage_widget_compact
             }
             val views = RemoteViews(context.packageName, layout)
+            if (style == WidgetStyle.GLASS) applyGlassStyle(context, views, size)
             val description = mutableListOf("CODEX")
             val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
             for (index in 0..1) {
@@ -127,10 +135,14 @@ class UsageWidget : AppWidgetProvider() {
                 val label = if (index == 0) "5h" else "Weekly"
                 val percent = percentage(value)
                 val countdown = recoveryCountdown(windows[index]?.resetAt, now)
-                val normalColor = context.getColor(if (singleWeekly) R.color.widget_weekly
+                val normalColor = if (style == WidgetStyle.GLASS) context.getColor(
+                    if (singleWeekly) R.color.widget_glass_weekly
+                    else if (size == WidgetSize.COMPACT) R.color.widget_glass_text
+                    else if (index == 0) R.color.widget_glass_primary else R.color.widget_glass_weekly)
+                else context.getColor(if (singleWeekly) R.color.widget_weekly
                     else if (size == WidgetSize.COMPACT) R.color.widget_text
                     else if (index == 0) R.color.widget_primary else R.color.widget_weekly)
-                val color = quotaColor(context, value, normalColor)
+                val color = widgetQuotaColor(context, value, normalColor, style)
                 val valueId = if (index == 0) R.id.widget_primary_value else R.id.widget_weekly_value
                 views.setTextViewText(valueId, percent)
                 views.setTextColor(valueId, color)
@@ -142,7 +154,7 @@ class UsageWidget : AppWidgetProvider() {
                 views.setTextViewText(if (index == 0) R.id.widget_primary_countdown else R.id.widget_weekly_countdown, countdownLabel)
                 if (size != WidgetSize.COMPACT) {
                     val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
-                    views.setImageViewBitmap(progressId, quotaProgress(context, value, color))
+                    views.setImageViewBitmap(progressId, quotaProgress(context, value, color, style))
                     views.setContentDescription(progressId, "$label 可用 $percent")
                     views.setImageViewBitmap(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, rings[index])
                     views.setContentDescription(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, "$label 可用 $percent")
@@ -175,32 +187,69 @@ class UsageWidget : AppWidgetProvider() {
             val refresh = PendingIntent.getBroadcast(context, 1, Intent(context, UsageWidget::class.java).setAction(ACTION_REFRESH), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             views.setOnClickPendingIntent(R.id.widget_root, open)
             views.setOnClickPendingIntent(R.id.widget_refresh, if (configured) refresh else open)
-            WidgetLoadingPresentation.apply(context, views, displaySize, refreshing)
+            WidgetLoadingPresentation.apply(context, views, displaySize, refreshing, style)
             return views
+        }
+
+        private fun applyGlassStyle(context: Context, views: RemoteViews, size: WidgetSize) {
+            views.setInt(R.id.widget_root, "setBackgroundResource",
+                if (size == WidgetSize.COMPACT) R.drawable.widget_compact_glass_background else R.drawable.widget_glass_background)
+            views.setViewVisibility(R.id.widget_glass_blur, View.VISIBLE)
+            val muted = context.getColor(R.color.widget_glass_muted)
+            for (id in intArrayOf(R.id.widget_status, R.id.widget_primary_countdown, R.id.widget_weekly_countdown,
+                R.id.widget_updated_at, R.id.widget_static_muted_1, R.id.widget_static_muted_2, R.id.widget_static_muted_3)) {
+                views.setTextColor(id, muted)
+            }
+            val text = context.getColor(R.color.widget_glass_text)
+            for (id in intArrayOf(R.id.widget_static_text_1, R.id.widget_static_text_2, R.id.widget_static_text_3)) {
+                views.setTextColor(id, text)
+            }
+            views.setTextColor(R.id.widget_static_primary_1, context.getColor(R.color.widget_glass_primary))
+            views.setTextColor(R.id.widget_static_weekly_1, context.getColor(R.color.widget_glass_weekly))
+            val divider = context.getColor(R.color.widget_glass_divider)
+            views.setInt(R.id.widget_divider_1, "setBackgroundColor", divider)
+            views.setInt(R.id.widget_divider_2, "setBackgroundColor", divider)
+            views.setImageViewResource(R.id.widget_icon_clock, R.drawable.ic_widget_glass_clock)
+            views.setImageViewResource(R.id.widget_icon_calendar, R.drawable.ic_widget_glass_calendar)
+            views.setImageViewResource(R.id.widget_icon_gpt, R.drawable.ic_widget_glass_gpt)
+            views.setImageViewResource(R.id.widget_refresh_icon, R.drawable.ic_widget_glass_refresh)
+        }
+
+        private fun widgetQuotaColor(context: Context, value: Double?, normalColor: Int, style: WidgetStyle): Int {
+            if (style == WidgetStyle.STANDARD) return quotaColor(context, value, normalColor)
+            return when {
+                value == null -> normalColor
+                value <= 15.0 -> context.getColor(R.color.widget_glass_critical)
+                value <= 40.0 -> context.getColor(R.color.widget_glass_warning)
+                else -> normalColor
+            }
         }
 
         // Scale the night-mode percentage with its ring. A separate full-column TextView
         // fits the column width rather than the circle's inner diameter on short widgets.
-        internal fun quotaRing(context: Context, value: Double?, weekly: Boolean): Bitmap {
+        internal fun quotaRing(context: Context, value: Double?, weekly: Boolean, widgetStyle: WidgetStyle = WidgetStyle.STANDARD): Bitmap {
             val bitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
                 strokeWidth = 20f
                 strokeCap = Paint.Cap.ROUND
-                color = context.getColor(R.color.widget_track)
+                color = context.getColor(if (widgetStyle == WidgetStyle.GLASS) R.color.widget_glass_track else R.color.widget_track)
             }
             val bounds = RectF(14f, 14f, 242f, 242f)
             canvas.drawOval(bounds, paint)
             if (value != null && value > 0) {
-                paint.color = quotaColor(context, value,
-                    context.getColor(if (weekly) R.color.widget_weekly else R.color.widget_primary))
+                val colorResource = if (widgetStyle == WidgetStyle.GLASS) {
+                    if (weekly) R.color.widget_glass_weekly else R.color.widget_glass_primary
+                } else if (weekly) R.color.widget_weekly else R.color.widget_primary
+                paint.color = widgetQuotaColor(context, value, context.getColor(colorResource), widgetStyle)
                 canvas.drawArc(bounds, -90f, (value.coerceIn(0.0, 100.0) * 3.6).toFloat(), false, paint)
             }
             val label = percentage(value)
             paint.apply {
                 style = Paint.Style.FILL
-                color = quotaColor(context, value, context.getColor(R.color.widget_text))
+                color = widgetQuotaColor(context, value,
+                    context.getColor(if (widgetStyle == WidgetStyle.GLASS) R.color.widget_glass_text else R.color.widget_text), widgetStyle)
                 typeface = Typeface.create("sans-serif", Typeface.BOLD)
                 textSize = 80f
             }
@@ -223,10 +272,12 @@ class UsageWidget : AppWidgetProvider() {
         }
 
         // Bitmap colors survive RemoteViews on Android 8+, including older launchers.
-        internal fun quotaProgress(context: Context, value: Double?, color: Int): Bitmap {
+        internal fun quotaProgress(context: Context, value: Double?, color: Int, widgetStyle: WidgetStyle = WidgetStyle.STANDARD): Bitmap {
             val bitmap = Bitmap.createBitmap(1000, 20, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = context.getColor(R.color.widget_track) }
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = context.getColor(if (widgetStyle == WidgetStyle.GLASS) R.color.widget_glass_track else R.color.widget_track)
+            }
             val bounds = RectF(0f, 0f, 1000f, 20f)
             canvas.drawRoundRect(bounds, 10f, 10f, paint)
             val fraction = (value ?: 0.0).coerceIn(0.0, 100.0) / 100.0
@@ -242,3 +293,5 @@ class UsageWidget : AppWidgetProvider() {
 
     }
 }
+
+class GlassUsageWidget : UsageWidget()

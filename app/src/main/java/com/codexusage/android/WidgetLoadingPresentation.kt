@@ -10,7 +10,7 @@ import android.widget.RemoteViews
 import kotlin.math.roundToInt
 
 internal object WidgetLoadingPresentation {
-    fun apply(context: Context, views: RemoteViews, size: SizeF, refreshing: Boolean) {
+    fun apply(context: Context, views: RemoteViews, size: SizeF, refreshing: Boolean, style: WidgetStyle = WidgetStyle.STANDARD) {
         // Explicitly reset every state: launchers normally reapply the same RemoteViews tree.
         views.setViewVisibility(R.id.widget_content, View.VISIBLE)
         views.setViewVisibility(R.id.widget_loading_overlay, View.GONE)
@@ -27,8 +27,8 @@ internal object WidgetLoadingPresentation {
         views.setViewVisibility(R.id.widget_refresh_icon, View.INVISIBLE)
         // ProgressBar starts its animated vector on the first draw, including on reapply.
         // Removing the view when finished also stops the drawable's animation.
-        views.addView(R.id.widget_refresh_animation,
-            RemoteViews(context.packageName, R.layout.widget_refresh_spinner))
+        views.addView(R.id.widget_refresh_animation, RemoteViews(context.packageName,
+            if (style == WidgetStyle.GLASS) R.layout.widget_glass_refresh_spinner else R.layout.widget_refresh_spinner))
     }
 
     internal fun snapshot(context: Context, views: RemoteViews, size: SizeF): Bitmap {
