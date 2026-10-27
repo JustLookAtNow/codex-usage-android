@@ -185,6 +185,27 @@ open class UsageWidget : AppWidgetProvider() {
             }
             val open = PendingIntent.getActivity(context, 0, openIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             val refresh = PendingIntent.getBroadcast(context, 1, Intent(context, UsageWidget::class.java).setAction(ACTION_REFRESH), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            val installedChatGpt = context.packageManager.getLaunchIntentForPackage("com.openai.chatgpt")
+            val chatGptIntent = installedChatGpt ?: openIntent
+            val chatGpt = PendingIntent.getActivity(context, 3, chatGptIntent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            val openDescription = context.getString(
+                if (installedChatGpt != null) R.string.widget_open_chatgpt else R.string.widget_open_app)
+            val chatGptTargets = when (size) {
+                WidgetSize.WIDE -> listOf(R.id.widget_open_chatgpt)
+                WidgetSize.LARGE -> listOf(R.id.widget_icon_gpt, R.id.widget_static_text_1)
+                WidgetSize.COMPACT -> if (singleWeekly) listOf(R.id.widget_weekly_value)
+                    else listOf(R.id.widget_primary_value, R.id.widget_weekly_value)
+            }
+            for (target in chatGptTargets) {
+                views.setOnClickPendingIntent(target, chatGpt)
+                val prefix = when (target) {
+                    R.id.widget_primary_value -> "5h 可用 ${percentage(windows[0]?.remaining)}，"
+                    R.id.widget_weekly_value -> "Weekly 可用 ${percentage(windows[1]?.remaining)}，"
+                    else -> ""
+                }
+                views.setContentDescription(target, prefix + openDescription)
+            }
             views.setOnClickPendingIntent(R.id.widget_root, open)
             views.setOnClickPendingIntent(R.id.widget_refresh, if (configured) refresh else open)
             WidgetLoadingPresentation.apply(context, views, displaySize, refreshing, style)

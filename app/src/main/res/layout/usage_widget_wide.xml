@@ -40,6 +40,7 @@
         </LinearLayout>
     </FrameLayout>
     <ImageView android:id="@+id/widget_loading_overlay" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:visibility="gone" android:importantForAccessibility="no" />
+    <FrameLayout android:id="@+id/widget_open_chatgpt" android:layout_width="59dp" android:layout_height="match_parent" />
     <FrameLayout android:id="@+id/widget_refresh" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="top|end" android:contentDescription="@string/widget_refresh_description" android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="12dp" android:paddingBottom="16dp">
         <ImageView android:id="@+id/widget_refresh_icon" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/ic_widget_refresh" android:importantForAccessibility="no" />
         <FrameLayout android:id="@+id/widget_refresh_animation" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" />

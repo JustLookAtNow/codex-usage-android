@@ -4,7 +4,7 @@
     <FrameLayout android:id="@+id/widget_content" android:layout_width="match_parent" android:layout_height="match_parent">
         <LinearLayout android:baselineAligned="false" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="12dp">
             <LinearLayout android:baselineAligned="false" android:layout_width="match_parent" android:layout_height="22dp" android:paddingStart="0dp" android:paddingEnd="32dp" android:orientation="horizontal" android:gravity="center_vertical">
-                <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_gpt" android:importantForAccessibility="no" android:id="@+id/widget_icon_gpt" />
+                <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_gpt" android:importantForAccessibility="yes" android:id="@+id/widget_icon_gpt" />
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:textColor="@color/widget_text" android:textSize="13sp" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:text="@string/widget_title" android:layout_weight="1" android:layout_marginStart="6dp" android:textStyle="bold" android:id="@+id/widget_static_text_1" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/widget_muted" android:textSize="10sp" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:text="@string/widget_period_weekly" android:id="@+id/widget_static_muted_1" />
             </LinearLayout>

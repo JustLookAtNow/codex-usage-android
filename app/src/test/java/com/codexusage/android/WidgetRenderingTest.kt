@@ -5,6 +5,8 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.pm.ResolveInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -427,6 +429,65 @@ class WidgetRenderingTest {
         val launched = app.nextStartedActivity
         assertEquals(Intent.ACTION_MAIN, launched.action)
         assertTrue(launched.flags and Intent.FLAG_ACTIVITY_SINGLE_TOP != 0)
+    }
+
+    @Test fun chatGptIconOpensInstalledAppOrFallsBackAcrossWidgetLayouts() {
+        val app = shadowOf(RuntimeEnvironment.getApplication())
+        val packageManager = shadowOf(context.packageManager)
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage("com.openai.chatgpt")
+        for (installed in listOf(false, true)) {
+            if (installed) {
+                val activity = ActivityInfo().apply { packageName = "com.openai.chatgpt"; name = "com.openai.chatgpt.MainActivity" }
+                packageManager.addResolveInfoForIntent(launcher, ResolveInfo().apply { activityInfo = activity })
+            }
+            for (style in WidgetStyle.entries) for (size in WidgetSize.entries) for (single in listOf(false, true)) {
+                val values: List<UsageWindow?> = if (single) listOf(null, windows[1]) else windows
+                val rings = values.mapIndexed { index, value -> UsageWidget.quotaRing(context, value?.remaining, index == 1, style) }
+                val view = UsageWidget.createViews(context, size, values, rings, now, "", "", true, style = style)
+                    .apply(context, FrameLayout(context))
+                val targets = when (size) {
+                    WidgetSize.WIDE -> listOf(R.id.widget_open_chatgpt)
+                    WidgetSize.LARGE -> listOf(R.id.widget_icon_gpt, R.id.widget_static_text_1)
+                    WidgetSize.COMPACT -> if (single) listOf(R.id.widget_weekly_value)
+                        else listOf(R.id.widget_primary_value, R.id.widget_weekly_value)
+                }
+                for (id in targets) {
+                    val target = view.findViewById<View>(id)
+                    assertTrue(target.contentDescription.toString().endsWith(if (installed) "打开 ChatGPT" else "打开 Codex 余量"))
+                    assertTrue(target.performClick())
+                    val launched = app.nextStartedActivity
+                    if (installed) assertEquals("com.openai.chatgpt", launched.component?.packageName)
+                    else assertEquals(MainActivity::class.java.name, launched.component?.className)
+                }
+            }
+        }
+    }
+
+    @Test fun chatGptTouchAreaReachesDividerWithoutOverlappingRefresh() {
+        for ((size, single) in listOf(WidgetSize.WIDE to false, WidgetSize.WIDE to true)) {
+            val values: List<UsageWindow?> = if (single) listOf(null, windows[1]) else windows
+            val rings = values.mapIndexed { index, value -> UsageWidget.quotaRing(context, value?.remaining, index == 1) }
+            val view = UsageWidget.createViews(context, size, values, rings, now, "", "", true)
+                .apply(context, FrameLayout(context)) as ViewGroup
+            val density = context.resources.displayMetrics.density
+            val width = ((if (size == WidgetSize.COMPACT) 180 else 360) * density).toInt()
+            val height = (80 * density).toInt()
+            view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+            view.layout(0, 0, width, height)
+            fun bounds(id: Int): Rect {
+                val target = view.findViewById<View>(id)
+                return Rect().also { target.getDrawingRect(it); view.offsetDescendantRectToMyCoords(target, it) }
+            }
+            val target = bounds(R.id.widget_open_chatgpt)
+            val divider = bounds(R.id.widget_divider_1)
+            val refresh = bounds(R.id.widget_refresh)
+            assertEquals(0, target.left)
+            assertEquals(0, target.top)
+            assertEquals(height, target.bottom)
+            assertEquals(divider.left, target.right)
+            assertTrue(target.right <= refresh.left)
+        }
     }
 
     @Test fun missingAndExpiredDeadlinesNeverInventQuotaAndBodyOpensApp() {
