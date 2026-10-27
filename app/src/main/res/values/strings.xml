@@ -7,6 +7,7 @@
     <string name="widget_refresh_description">刷新额度</string>
     <string name="widget_open_chatgpt">打开 ChatGPT</string>
     <string name="widget_open_app">打开 Codex 余量</string>
+    <string name="widget_refresh_failed_description">上次刷新失败，点击重试</string>
     <string name="widget_weekly_remaining">本周剩余</string>
     <string name="widget_recovery_label">额度恢复</string>
     <string name="widget_recovery_after">%1$s后恢复</string>

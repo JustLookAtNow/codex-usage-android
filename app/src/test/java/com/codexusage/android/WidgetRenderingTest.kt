@@ -150,7 +150,7 @@ class WidgetRenderingTest {
 
     @Test
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun refreshShowsWholeContentOverlayWithoutChangingTextInEverySizeAndTheme() {
+    fun refreshKeepsContentVisibleInEverySizeAndTheme() {
         for (night in listOf(false, true)) {
             val config = Configuration(context.resources.configuration).apply {
                 uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
@@ -166,8 +166,9 @@ class WidgetRenderingTest {
                 assertEquals(View.GONE, view.findViewById<TextView>(R.id.widget_status).visibility)
                 assertEquals("51%", view.findViewById<TextView>(R.id.widget_primary_value).text.toString())
                 val loading = view.findViewById<ImageView>(R.id.widget_loading_overlay)
-                assertEquals(View.VISIBLE, loading.visibility)
-                assertNotNull(loading.drawable)
+                assertEquals(View.GONE, loading.visibility)
+                assertEquals(View.VISIBLE, view.findViewById<View>(R.id.widget_content).visibility)
+                assertNotNull(view.findViewById<View>(R.id.widget_refresh_spinner))
                 assertEquals("2小时55分", view.findViewById<TextView>(R.id.widget_primary_countdown).text.toString())
             }
         }
@@ -205,10 +206,8 @@ class WidgetRenderingTest {
                             assertEquals(color, text.currentTextColor)
                             assertEquals(percentage(value), text.text.toString())
                             val loading = view.findViewById<ImageView>(R.id.widget_loading_overlay)
-                            val showLoading = refreshing
-                            assertEquals(if (showLoading) View.VISIBLE else View.GONE, loading.visibility)
-                            if (showLoading) assertNotNull(loading.drawable)
-                            assertEquals(if (refreshing) View.INVISIBLE else View.VISIBLE,
+                            assertEquals(View.GONE, loading.visibility)
+                            assertEquals(View.VISIBLE,
                                 view.findViewById<View>(R.id.widget_content).visibility)
                             if (size != WidgetSize.COMPACT) {
                                 val progress = view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress)
@@ -335,7 +334,8 @@ class WidgetRenderingTest {
         UsageWidget.updateAll(context)
         assertTrue(WidgetRefreshState.active(context))
         assertFalse(widgets.getViewFor(id).findViewById<TextView>(R.id.widget_status).text.contains("刷新中"))
-        assertEquals(View.VISIBLE, widgets.getViewFor(id).findViewById<View>(R.id.widget_loading_overlay).visibility)
+        assertEquals(View.VISIBLE, widgets.getViewFor(id).findViewById<View>(R.id.widget_content).visibility)
+        assertNotNull(widgets.getViewFor(id).findViewById<View>(R.id.widget_refresh_spinner))
         val worker = TestListenableWorkerBuilder<RefreshWorker>(context)
             .setInputData(workDataOf(RefreshWorker.MANUAL_REFRESH to true)).build()
         worker.doWork()
@@ -376,9 +376,9 @@ class WidgetRenderingTest {
         WidgetRefreshState.start(context)
         UsageWidget.updateAll(context)
         val loading = widgets.getViewFor(id).findViewById<ImageView>(R.id.widget_loading_overlay)
-        val bitmap = (loading.drawable as BitmapDrawable).bitmap
-        assertEquals(180, bitmap.width)
-        assertEquals(80, bitmap.height)
+        assertEquals(View.GONE, loading.visibility)
+        assertEquals(View.VISIBLE, widgets.getViewFor(id).findViewById<View>(R.id.widget_content).visibility)
+        assertNotNull(widgets.getViewFor(id).findViewById<View>(R.id.widget_refresh_spinner))
         assertFalse(widgets.getViewFor(id).findViewById<TextView>(R.id.widget_status).text.contains("刷新中"))
 
         context.getSharedPreferences("widget_refresh", Context.MODE_PRIVATE).edit()

@@ -64,6 +64,29 @@ class RepositoryTest {
         assertEquals("Bearer test-token-2", connections.last().getRequestProperty("Authorization"))
     }
 
+    @Test fun timeoutKeepsLastUsageAndUsesOneSecondTimeouts() {
+        var timeout = false
+        val connections = mutableListOf<HttpURLConnection>()
+        val repository = UsageRepository(context, { Credentials("test-token", "test-account") }, { url ->
+            (if (timeout) object : HttpURLConnection(url) {
+                override fun connect() = Unit
+                override fun disconnect() = Unit
+                override fun usingProxy() = false
+                override fun getResponseCode(): Int = throw java.net.SocketTimeoutException()
+            } else Response(url, 200, if (url.path.endsWith("/usage")) usageBody else """{"available_count":3}""", null))
+                .also { connections += it }
+        })
+        repository.refresh()
+        val cached = repository.body
+        val updated = repository.updatedAt
+        timeout = true
+        repository.refresh()
+        assertEquals(cached, repository.body)
+        assertEquals(updated, repository.updatedAt)
+        assertEquals("连接超时，请稍后刷新", repository.error)
+        assertTrue(connections.all { it.connectTimeout == 1000 && it.readTimeout == 1000 })
+    }
+
     @Test fun rateLimitPersistsAcrossRepositoryInstancesAndManualRefreshCannotBypassIt() {
         var requests = 0
         val repository = UsageRepository(context, { Credentials("test-token", "test-account") }, { url ->

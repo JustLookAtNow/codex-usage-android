@@ -5,7 +5,6 @@ import android.animation.AnimatorSet
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.os.Parcel
 import android.util.SizeF
@@ -37,7 +36,7 @@ class WidgetLoadingPresentationTest {
         val rings = windows.mapIndexed { index, window -> UsageWidget.quotaRing(context, window?.remaining, index == 1) }
         return UsageWidget.createViews(context, widgetSize(dimensions.width.toInt(), dimensions.height.toInt()),
             windows, rings, now, "", "正在刷新额度".takeIf { refreshing }.orEmpty(), true,
-            refreshing, displaySize = dimensions)
+            refreshing)
     }
 
     private fun measure(context: Context, view: View, size: SizeF) {
@@ -103,18 +102,4 @@ class WidgetLoadingPresentationTest {
         }
     }
 
-    @Test fun transparentBlurKeepsColorAndSpreadsAcrossBothAxes() {
-        val bitmap = Bitmap.createBitmap(41, 41, Bitmap.Config.ARGB_8888)
-        Canvas(bitmap).drawColor(Color.TRANSPARENT)
-        bitmap.setPixel(20, 20, Color.RED)
-        WidgetLoadingPresentation.blur(bitmap)
-        assertTrue(Color.alpha(bitmap.getPixel(20, 20)) in 1..254)
-        for ((x, y) in listOf(19 to 20, 20 to 19)) {
-            val pixel = bitmap.getPixel(x, y)
-            assertTrue(Color.alpha(pixel) > 0)
-            assertEquals(255, Color.red(pixel))
-            assertEquals(0, Color.green(pixel))
-            assertEquals(0, Color.blue(pixel))
-        }
-    }
 }

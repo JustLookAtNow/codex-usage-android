@@ -129,8 +129,8 @@ class UsageRepository(
         try {
             connection.requestMethod = if (postBody == null) "GET" else "POST"
             connection.instanceFollowRedirects = false
-            connection.connectTimeout = 10000
-            connection.readTimeout = 15000
+            connection.connectTimeout = 1000
+            connection.readTimeout = 1000
             connection.setRequestProperty("Authorization", "Bearer ${credentials.accessToken}")
             connection.setRequestProperty("ChatGPT-Account-Id", credentials.accountId)
             connection.setRequestProperty("Accept", "application/json")

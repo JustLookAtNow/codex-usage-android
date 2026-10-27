@@ -2,6 +2,7 @@ package com.codexusage.android
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.work.Configuration
 import androidx.work.WorkInfo
@@ -72,7 +73,14 @@ class WidgetSchedulingTest {
         val description = view.findViewById<TextView>(R.id.widget_status).contentDescription.toString()
         assertTrue(description.contains("更新于"))
         assertTrue(description.contains("旧数据"))
+        assertEquals("上次刷新失败，点击重试", view.findViewById<android.view.View>(R.id.widget_refresh).contentDescription)
+        assertEquals(R.drawable.ic_widget_refresh_warning, shadowOf(view.findViewById<ImageView>(R.id.widget_refresh_icon).drawable).createdFromResId)
         assertFalse(view.findViewById<TextView>(R.id.widget_primary_countdown).text.contains("重置"))
+        context.getSharedPreferences("usage", Context.MODE_PRIVATE).edit().remove("error").commit()
+        UsageWidget.updateAll(context)
+        view = manager.getViewFor(id)
+        assertEquals("刷新额度", view.findViewById<android.view.View>(R.id.widget_refresh).contentDescription)
+        assertEquals(R.drawable.ic_widget_refresh, shadowOf(view.findViewById<ImageView>(R.id.widget_refresh_icon).drawable).createdFromResId)
         CredentialStore(context).clear()
         UsageRepository(context).clear()
         UsageWidget.updateAll(context)

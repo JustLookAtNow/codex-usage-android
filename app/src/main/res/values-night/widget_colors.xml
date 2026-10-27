@@ -4,6 +4,7 @@
     <color name="widget_border">#3A444A</color>
     <color name="widget_text">#F5F8F9</color>
     <color name="widget_muted">#B5C4C9</color>
+    <color name="widget_refresh_warning">#FFB547</color>
     <color name="widget_primary">#29DDA0</color>
     <color name="widget_weekly">#42D9E8</color>
     <color name="widget_track">#2F383D</color>

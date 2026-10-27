@@ -75,7 +75,6 @@ class GlassWidgetTest {
             true,
             false,
             0,
-            SizeF(size.width, size.height),
             WidgetStyle.GLASS
         )
     }

@@ -90,7 +90,8 @@ open class UsageWidget : AppWidgetProvider() {
                     val options = manager.getAppWidgetOptions(id)
                     fun viewsFor(dimensions: SizeF): RemoteViews = createViews(context,
                         widgetSize(dimensions.width.toInt(), dimensions.height.toInt()), windows, rings,
-                        now, status, detail, configured, refreshing, repository.updatedAt, dimensions, style)
+                        now, status, detail, configured, refreshing, repository.updatedAt, style,
+                        failed = configured && repository.error != null)
                     val exactSizes = BundleCompat.getParcelableArrayList(options,
                         AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
                     val views = if (!exactSizes.isNullOrEmpty()) {
@@ -112,8 +113,7 @@ open class UsageWidget : AppWidgetProvider() {
         internal fun createViews(
             context: Context, size: WidgetSize, windows: List<UsageWindow?>, rings: List<Bitmap>,
             now: Long, status: String, detail: String, configured: Boolean, refreshing: Boolean = false,
-            updatedAt: Long = 0, displaySize: SizeF = SizeF(size.width, size.height),
-            style: WidgetStyle = WidgetStyle.STANDARD
+            updatedAt: Long = 0, style: WidgetStyle = WidgetStyle.STANDARD, failed: Boolean = false
         ): RemoteViews {
             val singleWeekly = weeklyOnly(windows)
             val layout = if (singleWeekly) when (size) {
@@ -127,6 +127,13 @@ open class UsageWidget : AppWidgetProvider() {
             }
             val views = RemoteViews(context.packageName, layout)
             if (style == WidgetStyle.GLASS) applyGlassStyle(context, views, size)
+            views.setImageViewResource(R.id.widget_refresh_icon, when {
+                failed -> R.drawable.ic_widget_refresh_warning
+                style == WidgetStyle.GLASS -> R.drawable.ic_widget_glass_refresh
+                else -> R.drawable.ic_widget_refresh
+            })
+            views.setContentDescription(R.id.widget_refresh, context.getString(
+                if (failed) R.string.widget_refresh_failed_description else R.string.widget_refresh_description))
             val description = mutableListOf("CODEX")
             val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
             for (index in 0..1) {
@@ -208,7 +215,7 @@ open class UsageWidget : AppWidgetProvider() {
             }
             views.setOnClickPendingIntent(R.id.widget_root, open)
             views.setOnClickPendingIntent(R.id.widget_refresh, if (configured) refresh else open)
-            WidgetLoadingPresentation.apply(context, views, displaySize, refreshing, style)
+            WidgetLoadingPresentation.apply(context, views, refreshing, style)
             return views
         }
 

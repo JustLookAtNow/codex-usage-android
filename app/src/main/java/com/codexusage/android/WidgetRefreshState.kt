@@ -10,7 +10,7 @@ internal object WidgetRefreshState {
     fun active(context: Context): Boolean = prefs(context).getLong("until", 0) > System.currentTimeMillis()
 
     fun start(context: Context) {
-        // Recover from interrupted work instead of leaving a permanently blurred widget.
+        // Recover from interrupted work instead of leaving the refresh indicator running.
         prefs(context).edit().putLong("until", System.currentTimeMillis() + 120_000)
             .putLong("started_elapsed", SystemClock.elapsedRealtime()).apply()
     }

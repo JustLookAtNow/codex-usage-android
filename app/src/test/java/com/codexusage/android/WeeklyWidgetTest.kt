@@ -127,7 +127,8 @@ class WeeklyWidgetTest {
                 assertEquals(percentage(value), text.text.toString())
                 assertEquals(quotaColor(themed, value, themed.getColor(R.color.widget_weekly)), text.currentTextColor)
                 val loader = view.findViewById<ImageView>(R.id.widget_loading_overlay)
-                assertEquals(if (refreshing) View.VISIBLE else View.GONE, loader.visibility)
+                assertEquals(View.GONE, loader.visibility)
+                assertEquals(View.VISIBLE, view.findViewById<View>(R.id.widget_content).visibility)
                 assertEquals("缓存 · !", view.findViewById<TextView>(R.id.widget_status).text.toString())
                 if (size != WidgetSize.COMPACT) assertEquals("更新于 ${localTime(updatedAt / 1000)}", view.findViewById<TextView>(R.id.widget_updated_at).text.toString())
             }
