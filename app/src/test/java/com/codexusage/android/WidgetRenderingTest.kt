@@ -244,6 +244,63 @@ class WidgetRenderingTest {
         }
     }
 
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun lowQuotaChangesFromYellowToRedAcrossWidgetStylesAndLayouts() {
+        for (night in listOf(false, true)) {
+            val config = Configuration(context.resources.configuration).apply {
+                uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
+                    (if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
+            }
+            val themed = context.createConfigurationContext(config)
+            for (style in WidgetStyle.entries) for (size in WidgetSize.entries) for (weeklyOnly in listOf(false, true)) {
+                var view: View? = null
+                val transitions = listOf(
+                    (25.0 to false) to (25.0 to false),
+                    (0.0 to true) to (25.0 to false),
+                    (25.0 to false) to (1.0 to true),
+                    (2.0 to true) to (9.0 to true),
+                    (10.0 to true) to (10.0 to true),
+                    (25.0 to false) to (25.0 to false)
+                )
+                for ((primary, weekly) in transitions) {
+                    val usage = Usage(null, if (weeklyOnly) listOf(windows[1].copy(remaining = weekly.first))
+                        else listOf(windows[0].copy(remaining = primary.first), windows[1].copy(remaining = weekly.first)))
+                    val values = widgetWindows(UsageParser.parse(UsageParser.displayJson(usage)))
+                    val rings = values.mapIndexed { index, window ->
+                        UsageWidget.quotaRing(themed, window?.remaining, index == 1, style)
+                    }
+                    val sent = UsageWidget.createViews(themed, size, values, rings, now, "", "", true,
+                        style = style)
+                    val parcel = Parcel.obtain()
+                    val received = try {
+                        sent.writeToParcel(parcel, 0)
+                        parcel.setDataPosition(0)
+                        RemoteViews.CREATOR.createFromParcel(parcel)
+                    } finally { parcel.recycle() }
+                    if (view == null) view = received.apply(themed, FrameLayout(themed)) else received.reapply(themed, view)
+                    for (index in if (weeklyOnly) 1..1 else 0..1) {
+                        val (value, critical) = if (index == 0) primary else weekly
+                        val expected = themed.getColor(when (style) {
+                            WidgetStyle.STANDARD -> if (critical) R.color.quota_critical else R.color.quota_warning
+                            WidgetStyle.GLASS -> if (critical) R.color.widget_glass_critical else R.color.widget_glass_warning
+                        })
+                        val valueId = if (index == 0) R.id.widget_primary_value else R.id.widget_weekly_value
+                        val text = view!!.findViewById<TextView>(valueId)
+                        val label = "style=$style size=$size night=$night weeklyOnly=$weeklyOnly value=$value index=$index"
+                        assertEquals(label, "${value.toInt()}%", text.text.toString())
+                        assertEquals(label, expected, text.currentTextColor)
+                        if (night && size != WidgetSize.COMPACT) {
+                            val ringId = if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring
+                            val bitmap = (view.findViewById<ImageView>(ringId).drawable as BitmapDrawable).bitmap
+                            assertTrue("$label: ring label has the wrong color", hasColor(bitmap, expected, 56, 78, 200, 178))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private fun hasColor(bitmap: Bitmap, color: Int, left: Int, top: Int, right: Int, bottom: Int): Boolean {
         for (y in top until bottom) for (x in left until right) {
             val pixel = bitmap.getPixel(x, y)

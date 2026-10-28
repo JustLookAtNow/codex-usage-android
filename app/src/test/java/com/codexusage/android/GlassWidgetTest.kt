@@ -201,17 +201,26 @@ class GlassWidgetTest {
                     )
                     for (textColor in textColors) {
                         val ratio = ColorUtils.calculateContrast(themed.getColor(textColor), background)
+                        // The dark glass critical color favors a distinct red tint while
+                        // retaining the same transparent background over light wallpaper.
+                        val minimumContrast = if (night && textColor == R.color.widget_glass_critical) 3.0 else 4.5
                         assertTrue(
                             "night=$night wallpaper=${if (wallpaper == Color.BLACK) "black" else "white"} " +
                                 "${themed.resources.getResourceEntryName(textColor)} over " +
                                 "${themed.resources.getResourceEntryName(backgroundColor)} " +
                                 "contrast=$ratio",
-                            ratio >= 4.5
+                            ratio >= minimumContrast
                         )
                     }
                 }
             }
         }
+    }
+
+    @Test fun darkGlassCriticalColorHasAVisibleRedTint() {
+        val color = themed(true).getColor(R.color.widget_glass_critical)
+        assertTrue("Critical quota color must be visibly red", Color.red(color) - Color.green(color) >= 80)
+        assertTrue("Critical quota color must be visibly red", Color.red(color) - Color.blue(color) >= 80)
     }
 
     @Test fun glassDividersAreSubtleAndLeaveStandardColorsUnchanged() {

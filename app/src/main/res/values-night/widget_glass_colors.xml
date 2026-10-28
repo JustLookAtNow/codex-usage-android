@@ -5,7 +5,7 @@
     <color name="widget_glass_primary">#B0FFD8</color>
     <color name="widget_glass_weekly">#C4F9FF</color>
     <color name="widget_glass_warning">#FFEFA5</color>
-    <color name="widget_glass_critical">#FFF0F0</color>
+    <color name="widget_glass_critical">#FFA8A8</color>
     <color name="widget_glass_track">#708087</color>
     <color name="widget_glass_divider">#30FFFFFF</color>
 </resources>
