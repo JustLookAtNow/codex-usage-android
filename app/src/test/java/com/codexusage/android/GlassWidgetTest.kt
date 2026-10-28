@@ -7,10 +7,12 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.util.SizeF
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.RemoteViews
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
@@ -177,6 +179,34 @@ class GlassWidgetTest {
         }
     }
 
+    @Test fun lightGlassQuotaNumbersAndProgressUseMatchingColors() {
+        val themed = themed(false)
+        for (size in WidgetSize.entries) for (singleWeekly in listOf(false, true)) {
+            for ((value, colorId) in listOf(
+                51.0 to R.color.widget_glass_primary,
+                40.0 to R.color.widget_glass_warning,
+                15.0 to R.color.widget_glass_critical
+            )) {
+                val values = if (singleWeekly) listOf(null, windows[1].copy(remaining = value))
+                    else windows.map { it.copy(remaining = value) }
+                val view = glassViews(themed, size, values).apply(themed, FrameLayout(themed))
+                val color = themed.getColor(colorId)
+                for (index in if (singleWeekly) 1..1 else 0..1) {
+                    val valueId = if (index == 0) R.id.widget_primary_value else R.id.widget_weekly_value
+                    assertEquals("$size singleWeekly=$singleWeekly value=$value index=$index",
+                        color, view.findViewById<TextView>(valueId).currentTextColor)
+                    if (size != WidgetSize.COMPACT) {
+                        val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
+                        val bitmap = (view.findViewById<ImageView>(progressId).drawable as BitmapDrawable).bitmap
+                        assertEquals(color, bitmap.getPixel(100, 10))
+                        assertEquals(themed.getColor(R.color.widget_glass_track), bitmap.getPixel(980, 10))
+                        assertTrue(ColorUtils.calculateContrast(color, themed.getColor(R.color.widget_glass_track)) >= 3.0)
+                    }
+                }
+            }
+        }
+    }
+
     @Test fun glassTextColorsKeepContrastOverBlackAndWhiteWallpapers() {
         val textColors = listOf(
             R.color.widget_glass_text,
@@ -201,9 +231,14 @@ class GlassWidgetTest {
                     )
                     for (textColor in textColors) {
                         val ratio = ColorUtils.calculateContrast(themed.getColor(textColor), background)
-                        // The dark glass critical color favors a distinct red tint while
-                        // retaining the same transparent background over light wallpaper.
-                        val minimumContrast = if (night && textColor == R.color.widget_glass_critical) 3.0 else 4.5
+                        // Brighter light-theme accents trade some contrast over black
+                        // wallpaper for recognizable green, orange, and red colors.
+                        val accent = textColor != R.color.widget_glass_text && textColor != R.color.widget_glass_muted
+                        val minimumContrast = when {
+                            !night && wallpaper == Color.BLACK && accent -> 2.0
+                            night && textColor == R.color.widget_glass_critical -> 3.0
+                            else -> 4.5
+                        }
                         assertTrue(
                             "night=$night wallpaper=${if (wallpaper == Color.BLACK) "black" else "white"} " +
                                 "${themed.resources.getResourceEntryName(textColor)} over " +

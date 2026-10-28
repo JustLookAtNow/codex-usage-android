@@ -2,10 +2,10 @@
 <resources>
     <color name="widget_glass_text">#001E18</color>
     <color name="widget_glass_muted">#002A22</color>
-    <color name="widget_glass_primary">#00261B</color>
-    <color name="widget_glass_weekly">#00261B</color>
-    <color name="widget_glass_warning">#352000</color>
-    <color name="widget_glass_critical">#460707</color>
-    <color name="widget_glass_track">#708C81</color>
+    <color name="widget_glass_primary">#006A50</color>
+    <color name="widget_glass_weekly">#006A50</color>
+    <color name="widget_glass_warning">#934700</color>
+    <color name="widget_glass_critical">#A82B2B</color>
+    <color name="widget_glass_track">#C5DED4</color>
     <color name="widget_glass_divider">#3000211B</color>
 </resources>
