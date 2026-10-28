@@ -6,7 +6,6 @@
             <LinearLayout android:layout_width="42dp" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:baselineAligned="false">
                 <ImageView android:layout_width="25dp" android:layout_height="25dp" android:src="@drawable/ic_widget_gpt" android:importantForAccessibility="no" android:id="@+id/widget_icon_gpt" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="9sp" android:textColor="@color/widget_text" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:layout_marginTop="3dp" android:text="@string/widget_title" android:textStyle="bold" android:id="@+id/widget_static_text_1" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="7sp" android:textColor="@color/widget_muted" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:id="@+id/widget_status" android:ellipsize="end" android:visibility="gone" />
             </LinearLayout>
             <ImageView android:id="@+id/widget_divider_1" android:layout_width="1dp" android:layout_height="match_parent" android:background="@color/widget_divider" android:layout_marginStart="7dp" android:layout_marginEnd="7dp" android:importantForAccessibility="no" />
             <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="horizontal" android:baselineAligned="false">
@@ -36,9 +35,10 @@
                     <TextView android:layout_width="match_parent" android:layout_height="15dp" android:textSize="10sp" android:textColor="@color/widget_muted" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:id="@+id/widget_weekly_countdown" android:gravity="center_vertical" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="8sp" android:autoSizeMaxTextSize="10sp" android:autoSizeStepGranularity="1sp" android:text="@string/widget_unknown" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
-            <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_widget_refresh" android:importantForAccessibility="yes" android:padding="2dp" android:layout_marginStart="2dp" android:contentDescription="@string/widget_refresh_description" android:visibility="invisible" />
+            <ImageView android:layout_width="36dp" android:layout_height="20dp" android:src="@drawable/ic_widget_refresh" android:importantForAccessibility="yes" android:padding="2dp" android:layout_marginStart="2dp" android:contentDescription="@string/widget_refresh_description" android:visibility="invisible" />
         </LinearLayout>
     </FrameLayout>
+    <TextView android:id="@+id/widget_status" android:layout_width="48dp" android:layout_height="12dp" android:layout_gravity="top|end" android:layout_marginTop="34dp" android:gravity="center" android:textSize="7sp" android:textColor="@color/widget_muted" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:ellipsize="end" android:visibility="gone" />
     <ImageView android:id="@+id/widget_loading_overlay" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:visibility="gone" android:importantForAccessibility="no" />
     <FrameLayout android:id="@+id/widget_open_chatgpt" android:layout_width="59dp" android:layout_height="match_parent" />
     <FrameLayout android:id="@+id/widget_refresh" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="top|end" android:contentDescription="@string/widget_refresh_description" android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="12dp" android:paddingBottom="16dp">

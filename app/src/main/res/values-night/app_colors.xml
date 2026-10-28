@@ -5,4 +5,10 @@
     <color name="app_muted">#ADBBB5</color>
     <color name="app_accent">#51D5AD</color>
     <color name="app_button">#29383A</color>
+    <color name="app_xposed_ready">#86E5B4</color>
+    <color name="app_xposed_ready_background">#18382C</color>
+    <color name="app_xposed_ready_border">#387D5E</color>
+    <color name="app_xposed_attention">#FFD780</color>
+    <color name="app_xposed_attention_background">#403118</color>
+    <color name="app_xposed_attention_border">#906D29</color>
 </resources>

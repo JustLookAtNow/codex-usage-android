@@ -4,12 +4,17 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.IInterface
 import android.os.Looper
+import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
 import io.github.libxposed.service.XposedProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -120,31 +125,66 @@ class XposedStatusTest {
         }
     }
 
-    @Test fun activityDisplaysGuidanceAndRefreshesServiceStateOnResume() {
+    private fun checkActivityStatusCard() {
         val application = RuntimeEnvironment.getApplication() as CodexUsageApplication
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         val service = FakeConnection(packages = listOf("com.android.launcher"))
+        val oldService = FakeConnection(apiVersion = 101)
         try {
-            val texts = descendants(controller.get().window.decorView).filterIsInstance<TextView>()
+            val views = descendants(controller.get().window.decorView)
+            val texts = views.filterIsInstance<TextView>()
             assertTrue(texts.any { it.text.toString().contains(
                 application.getString(R.string.glass_widget_compatibility_description)) })
             assertTrue(texts.any { it.text.toString().contains("未启用时显示半透明背景") })
             val status = texts.single { it.text.toString().startsWith("LSPosed：") }
+            val card = status.parent as LinearLayout
+            val title = card.getChildAt(0) as TextView
+            val heading = card.getChildAt(1) as TextView
+            val page = card.parent as ViewGroup
+            val refresh = views.filterIsInstance<Button>().single { it.text == "立即刷新" }
+            val glassWidget = views.filterIsInstance<Button>().single { it.text == "添加透明玻璃小部件" }
+            assertEquals("LSPosed · 要求 API 102+", title.text.toString())
+            assertTrue(page.indexOfChild(refresh) < page.indexOfChild(card))
+            assertEquals(page.indexOfChild(glassWidget) + 1, page.indexOfChild(card))
+            awaitText(heading, "模块服务未连接")
+            val attentionBackground = (card.background as GradientDrawable).color!!.defaultColor
+            assertTrue(ColorUtils.calculateContrast(heading.currentTextColor, attentionBackground) >= 4.5)
+            assertTrue(ColorUtils.calculateContrast(status.currentTextColor, attentionBackground) >= 4.5)
+
             application.xposedStatus.connect(service)
             awaitText(status, "系统桌面已加入作用域")
+            awaitText(heading, "已连接 · 桌面已加入作用域")
+            val readyBackground = (card.background as GradientDrawable).color!!.defaultColor
+            assertNotEquals(attentionBackground, readyBackground)
+            assertTrue(ColorUtils.calculateContrast(heading.currentTextColor, readyBackground) >= 4.5)
+            assertTrue(ColorUtils.calculateContrast(status.currentTextColor, readyBackground) >= 4.5)
 
             controller.pause().stop()
             service.packages = emptyList()
             controller.start().resume()
             awaitText(status, "系统桌面未加入作用域")
+            awaitText(heading, "已连接 · 桌面未加入作用域")
 
-            application.xposedStatus.disconnect(service)
+            service.failQuery = true
+            application.xposedStatus.connect(service)
+            awaitText(heading, "状态查询失败")
+
+            application.xposedStatus.connect(oldService)
+            awaitText(heading, "API 版本不足")
+            awaitText(status, "API 101")
+
+            application.xposedStatus.disconnect(oldService)
             awaitText(status, "未检测到可用的模块服务")
+            awaitText(heading, "模块服务未连接")
         } finally {
             application.xposedStatus.disconnect(service)
+            application.xposedStatus.disconnect(oldService)
             controller.pause().stop().destroy()
         }
     }
+
+    @Test @Config(qualifiers = "notnight") fun statusCardIsVisibleAndReadableInLightMode() = checkActivityStatusCard()
+    @Test @Config(qualifiers = "night") fun statusCardIsVisibleAndReadableInDarkMode() = checkActivityStatusCard()
 
     @Test fun widgetPickerReceivesCompatibilityDescription() {
         val context = RuntimeEnvironment.getApplication()

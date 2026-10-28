@@ -40,6 +40,8 @@ class MainActivity : Activity() {
     private lateinit var resetToggle: Button
     private lateinit var source: TextView
     private lateinit var feedback: TextView
+    private lateinit var xposedStatusCard: LinearLayout
+    private lateinit var xposedStatusHeading: TextView
     private lateinit var xposedStatus: TextView
     private val actions = mutableListOf<Button>()
     private val resetActions = mutableListOf<Pair<Button, Boolean>>()
@@ -106,9 +108,29 @@ class MainActivity : Activity() {
         resetStatus = text("", 13, R.color.app_muted)
         button("添加原有小部件") { pinWidget(glass = false) }
         button("添加透明玻璃小部件") { pinWidget(glass = true) }
+        xposedStatusCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = GradientDrawable().apply {
+                setColor(getColor(R.color.app_surface))
+                setStroke(dp(1), getColor(R.color.app_muted))
+                cornerRadius = dp(16).toFloat()
+            }
+        }
+        content.addView(xposedStatusCard, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+        text("LSPosed · 要求 API 102+", 14, bold = true, parent = xposedStatusCard).apply {
+            (layoutParams as LinearLayout.LayoutParams).topMargin = 0
+            isAccessibilityHeading = true
+        }
+        xposedStatusHeading = text("正在检测…", 18, R.color.app_muted, true, xposedStatusCard).apply {
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        xposedStatus = text("LSPosed：正在检测模块服务与系统桌面作用域…", 13, parent = xposedStatusCard).apply {
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(6)
+        }
         text(getString(R.string.glass_widget_compatibility_description) +
             "。请在 LSPosed 中启用本应用模块，勾选系统桌面并重启桌面；未启用时显示半透明背景。", 13, R.color.app_muted)
-        xposedStatus = text("LSPosed：正在检测…", 13, R.color.app_muted)
         text("登录凭据", 21, bold = true)
         source = text("", 13, R.color.app_muted)
         feedback = text("", 13, R.color.app_accent)
@@ -190,10 +212,22 @@ class MainActivity : Activity() {
         val tracker = (application as CodexUsageApplication).xposedStatus
         val connection = tracker.connection
         executor.execute {
-            val result = xposedStatusText(readXposedStatus(connection))
+            val result = readXposedStatus(connection)
             runOnUiThread {
-                if (!isDestroyed && !isFinishing && tracker.connection === connection) xposedStatus.text = result
+                if (!isDestroyed && !isFinishing && tracker.connection === connection) showXposedStatus(result)
             }
+        }
+    }
+
+    private fun showXposedStatus(result: XposedStatus) {
+        val ready = result is XposedStatus.DesktopScoped
+        xposedStatusHeading.text = xposedStatusLabel(result)
+        xposedStatusHeading.setTextColor(getColor(if (ready) R.color.app_xposed_ready else R.color.app_xposed_attention))
+        xposedStatus.text = xposedStatusText(result)
+        xposedStatusCard.background = GradientDrawable().apply {
+            setColor(getColor(if (ready) R.color.app_xposed_ready_background else R.color.app_xposed_attention_background))
+            setStroke(dp(1), getColor(if (ready) R.color.app_xposed_ready_border else R.color.app_xposed_attention_border))
+            cornerRadius = dp(16).toFloat()
         }
     }
 

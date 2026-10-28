@@ -521,12 +521,17 @@ class WidgetRenderingTest {
     }
 
     @Test fun chatGptTouchAreaReachesDividerWithoutOverlappingRefresh() {
-        for ((size, single) in listOf(WidgetSize.WIDE to false, WidgetSize.WIDE to true)) {
+        for (night in listOf(false, true)) for ((size, single) in listOf(WidgetSize.WIDE to false, WidgetSize.WIDE to true)) {
+            val config = Configuration(context.resources.configuration).apply {
+                uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
+                    (if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
+            }
+            val themed = context.createConfigurationContext(config)
             val values: List<UsageWindow?> = if (single) listOf(null, windows[1]) else windows
-            val rings = values.mapIndexed { index, value -> UsageWidget.quotaRing(context, value?.remaining, index == 1) }
-            val view = UsageWidget.createViews(context, size, values, rings, now, "", "", true)
-                .apply(context, FrameLayout(context)) as ViewGroup
-            val density = context.resources.displayMetrics.density
+            val rings = values.mapIndexed { index, value -> UsageWidget.quotaRing(themed, value?.remaining, index == 1) }
+            val view = UsageWidget.createViews(themed, size, values, rings, now, "", "", true)
+                .apply(themed, FrameLayout(themed)) as ViewGroup
+            val density = themed.resources.displayMetrics.density
             val width = ((if (size == WidgetSize.COMPACT) 180 else 360) * density).toInt()
             val height = (80 * density).toInt()
             view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
@@ -537,6 +542,7 @@ class WidgetRenderingTest {
                 return Rect().also { target.getDrawingRect(it); view.offsetDescendantRectToMyCoords(target, it) }
             }
             val target = bounds(R.id.widget_open_chatgpt)
+            assertTrue(view.findViewById<View>(R.id.widget_open_chatgpt).hasOnClickListeners())
             val divider = bounds(R.id.widget_divider_1)
             val refresh = bounds(R.id.widget_refresh)
             assertEquals(0, target.left)

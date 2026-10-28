@@ -51,6 +51,14 @@ internal fun xposedStatusText(status: XposedStatus): String = when (status) {
     is XposedStatus.DesktopScoped -> "${status.framework}（API ${status.api}）：模块服务已连接，系统桌面已加入作用域。启用或更新模块后请重启桌面；实际模糊效果需在桌面确认。"
 }
 
+internal fun xposedStatusLabel(status: XposedStatus): String = when (status) {
+    XposedStatus.NotConnected -> "模块服务未连接"
+    XposedStatus.QueryFailed -> "状态查询失败"
+    is XposedStatus.UnsupportedApi -> "API 版本不足"
+    is XposedStatus.DesktopNotScoped -> "已连接 · 桌面未加入作用域"
+    is XposedStatus.DesktopScoped -> "已连接 · 桌面已加入作用域"
+}
+
 internal class XposedStatusTracker {
     @Volatile var connection: XposedConnection? = null
         private set
