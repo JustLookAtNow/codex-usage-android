@@ -144,7 +144,7 @@ open class UsageWidget : AppWidgetProvider() {
                 val countdown = recoveryCountdown(windows[index]?.resetAt, now)
                 val normalColor = if (style == WidgetStyle.GLASS) context.getColor(
                     if (singleWeekly) R.color.widget_glass_weekly
-                    else if (size == WidgetSize.COMPACT) R.color.widget_glass_text
+                    else if (size == WidgetSize.COMPACT && (night || value == null)) R.color.widget_glass_text
                     else if (index == 0) R.color.widget_glass_primary else R.color.widget_glass_weekly)
                 else context.getColor(if (singleWeekly) R.color.widget_weekly
                     else if (size == WidgetSize.COMPACT) R.color.widget_text

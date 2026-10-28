@@ -18,4 +18,5 @@
     <string name="glass_widget_name">Codex 余量 · 透明玻璃</string>
     <string name="glass_widget_add_manually">请长按桌面 → 小部件 → Codex 余量 · 透明玻璃</string>
     <string name="glass_blur_module_description">为 ColorOS 系统桌面的透明玻璃小部件启用背景模糊</string>
+    <string name="glass_widget_compatibility_description">实时壁纸模糊仅适用于 ColorOS 17 系统桌面 + LSPosed（API 102 及以上）</string>
 </resources>

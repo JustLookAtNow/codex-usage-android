@@ -6,6 +6,7 @@
         <package android:name="com.openai.chatgpt" />
     </queries>
     <application
+        android:name=".CodexUsageApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"

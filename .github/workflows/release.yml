@@ -36,7 +36,7 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
       - name: Install Android SDK components
-        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
       - name: Test and lint
         run: |
           python3 -m unittest discover -s .github/scripts -p 'test_*.py'
@@ -79,9 +79,9 @@ jobs:
           set -euo pipefail
           apk=app/build/outputs/apk/release/app-arm64-v8a-release.apk
           [[ $(find app/build/outputs/apk/release -name '*.apk' | wc -l) -eq 1 ]]
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
-          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$apk"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
           grep -F "versionCode='$VERSION_CODE'" "$RUNNER_TEMP/apk-badging.txt"
           grep -F "versionName='$VERSION_NAME'" "$RUNNER_TEMP/apk-badging.txt"
           if unzip -Z1 "$apk" | grep '^lib/' | grep -v '^lib/arm64-v8a/'; then
