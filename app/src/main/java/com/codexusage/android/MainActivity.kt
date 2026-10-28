@@ -40,9 +40,13 @@ class MainActivity : Activity() {
     private lateinit var resetToggle: Button
     private lateinit var source: TextView
     private lateinit var feedback: TextView
+    private lateinit var xposedStatus: TextView
     private val actions = mutableListOf<Button>()
     private val resetActions = mutableListOf<Pair<Button, Boolean>>()
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> runOnUiThread { render() } }
+    private val xposedListener: () -> Unit = {
+        runOnUiThread { if (!isDestroyed && !isFinishing) refreshXposedStatus() }
+    }
     private var busy = false
     private var selectingFile = false
     private var confirmingReset = false
@@ -102,6 +106,9 @@ class MainActivity : Activity() {
         resetStatus = text("", 13, R.color.app_muted)
         button("添加原有小部件") { pinWidget(glass = false) }
         button("添加透明玻璃小部件") { pinWidget(glass = true) }
+        text(getString(R.string.glass_widget_compatibility_description) +
+            "。请在 LSPosed 中启用本应用模块，勾选系统桌面并重启桌面；未启用时显示半透明背景。", 13, R.color.app_muted)
+        xposedStatus = text("LSPosed：正在检测…", 13, R.color.app_muted)
         text("登录凭据", 21, bold = true)
         source = text("", 13, R.color.app_muted)
         feedback = text("", 13, R.color.app_accent)
@@ -155,11 +162,39 @@ class MainActivity : Activity() {
         super.onSaveInstanceState(outState)
     }
 
-    override fun onResume() { super.onResume(); if (::quota.isInitialized) render() }
+    override fun onStart() {
+        super.onStart()
+        (application as CodexUsageApplication).xposedStatus.addListener(xposedListener)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::quota.isInitialized) {
+            render()
+            refreshXposedStatus()
+        }
+    }
+
+    override fun onStop() {
+        (application as CodexUsageApplication).xposedStatus.removeListener(xposedListener)
+        super.onStop()
+    }
+
     override fun onDestroy() {
         getSharedPreferences("usage", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(listener)
         executor.shutdown()
         super.onDestroy()
+    }
+
+    private fun refreshXposedStatus() {
+        val tracker = (application as CodexUsageApplication).xposedStatus
+        val connection = tracker.connection
+        executor.execute {
+            val result = xposedStatusText(readXposedStatus(connection))
+            runOnUiThread {
+                if (!isDestroyed && !isFinishing && tracker.connection === connection) xposedStatus.text = result
+            }
+        }
     }
 
     private fun render() {
