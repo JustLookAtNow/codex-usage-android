@@ -69,7 +69,7 @@ class WidgetSchedulingTest {
         assertEquals("75%", view.findViewById<TextView>(R.id.widget_primary_value).text.toString())
         assertEquals("50%", view.findViewById<TextView>(R.id.widget_weekly_value).text.toString())
         val status = view.findViewById<TextView>(R.id.widget_status).text.toString()
-        assertTrue(status.contains("缓存"))
+        assertEquals(widgetRefreshAge(1800000000000, System.currentTimeMillis() / 1000), status)
         val description = view.findViewById<TextView>(R.id.widget_status).contentDescription.toString()
         assertTrue(description.contains("更新于"))
         assertTrue(description.contains("旧数据"))

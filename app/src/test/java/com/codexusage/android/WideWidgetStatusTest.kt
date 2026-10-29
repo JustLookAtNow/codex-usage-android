@@ -16,7 +16,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class WideWidgetStatusTest {
-    @Test fun cacheStatusAppearsBelowRefreshIconForBothLayoutsAndStyles() {
+    @Test fun refreshAgeAppearsBelowRefreshIconForBothLayoutsAndStyles() {
         val context = RuntimeEnvironment.getApplication()
         val now = 1800000000L
         val weekly = UsageWindow("Weekly", 90.0, now + 86400, 604800, false)
@@ -32,7 +32,7 @@ class WideWidgetStatusTest {
                     UsageWidget.quotaRing(themed, window?.remaining, index == 1, style)
                 }
                 val view = UsageWidget.createViews(themed, WidgetSize.WIDE, windows, rings, now,
-                    "缓存 · !", "旧数据", true, style = style, failed = true)
+                    "1h前", "旧数据", true, style = style, failed = true)
                     .apply(themed, FrameLayout(themed)) as ViewGroup
                 val density = themed.resources.displayMetrics.density
                 view.measure(View.MeasureSpec.makeMeasureSpec((width * density).toInt(), View.MeasureSpec.EXACTLY),
@@ -55,7 +55,7 @@ class WideWidgetStatusTest {
                 val iconBounds = bounds(icon)
                 val case = "night=$night single=$single style=$style size=${width}x$height " +
                     "status=$statusBounds icon=$iconBounds"
-                assertEquals("缓存 · !", status.text.toString())
+                assertEquals("1h前", status.text.toString())
                 assertEquals(View.VISIBLE, status.visibility)
                 assertTrue(case, statusBounds.top >= iconBounds.bottom)
                 assertTrue(case, kotlin.math.abs(iconBounds.centerX() - statusBounds.centerX()) <= 1f)

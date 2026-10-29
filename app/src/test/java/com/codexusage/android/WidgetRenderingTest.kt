@@ -386,7 +386,8 @@ class WidgetRenderingTest {
         // Unsupported fake mode fails before loading any credential or opening a connection.
         context.getSharedPreferences("credentials", Context.MODE_PRIVATE).edit().putString("mode", "test").commit()
         context.getSharedPreferences("usage", Context.MODE_PRIVATE).edit()
-            .putString("body", UsageParser.displayJson(Usage(null, windows))).commit()
+            .putString("body", UsageParser.displayJson(Usage(null, windows)))
+            .putLong("updated_at", System.currentTimeMillis()).commit()
         WidgetRefreshState.start(context)
         UsageWidget.updateAll(context)
         assertTrue(WidgetRefreshState.active(context))
@@ -400,7 +401,7 @@ class WidgetRenderingTest {
         val restored = widgets.getViewFor(id)
         assertEquals("51%", restored.findViewById<TextView>(R.id.widget_primary_value).text.toString())
         assertEquals(View.GONE, restored.findViewById<ImageView>(R.id.widget_loading_overlay).visibility)
-        assertTrue(restored.findViewById<TextView>(R.id.widget_status).text.contains("缓存"))
+        assertEquals("刚刚", restored.findViewById<TextView>(R.id.widget_status).text.toString())
     }
 
     @Test fun interruptedRefreshExpiresAndClearingConfigurationRemovesFeedback() {

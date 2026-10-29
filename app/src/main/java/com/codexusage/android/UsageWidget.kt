@@ -35,6 +35,16 @@ import java.util.Locale
 fun percentage(value: Double?): String = value?.let { String.format(Locale.getDefault(), "%.0f%%", it) } ?: "—"
 fun localTime(epochSeconds: Long): String = DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochSecond(epochSeconds))
 
+internal fun widgetRefreshAge(updatedAt: Long, now: Long): String {
+    if (updatedAt <= 0) return ""
+    val age = (now - updatedAt / 1000).coerceAtLeast(0)
+    return when {
+        age < 60 -> "刚刚"
+        age >= 3600 -> "1h前"
+        else -> "${((age + 59) / 60).coerceIn(2, 59)}m"
+    }
+}
+
 open class UsageWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         updateAll(context)
@@ -78,9 +88,9 @@ open class UsageWidget : AppWidgetProvider() {
             val now = System.currentTimeMillis() / 1000
             val status = when {
                 !configured -> "请配置"
-                repository.error != null -> if (usage != null) "缓存 · !" else "查询失败"
-                usage == null -> "等待查询"
-                else -> ""
+                usage != null -> widgetRefreshAge(repository.updatedAt, now)
+                repository.error != null -> "查询失败"
+                else -> "等待查询"
             }
             val detail = when {
                 !configured -> "请打开应用配置凭据"
@@ -116,7 +126,8 @@ open class UsageWidget : AppWidgetProvider() {
                 }
             }
             WidgetCountdown.schedule(context, idsByStyle.values.any { it.isNotEmpty() } && configured &&
-                (refreshing || windows.any { (it?.resetAt ?: 0) > now }))
+                (refreshing || windows.any { (it?.resetAt ?: 0) > now } ||
+                    (usage != null && repository.updatedAt > 0 && now - repository.updatedAt / 1000 < 3600)))
         }
 
         internal fun createViews(

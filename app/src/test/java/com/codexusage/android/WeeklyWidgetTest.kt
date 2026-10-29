@@ -115,7 +115,7 @@ class WeeklyWidgetTest {
             val themed = themed(night)
             var view: View? = null
             for (value in listOf(15.0, 40.0, 86.0, null)) for (refreshing in listOf(true, false)) {
-                val sent = remote(themed, size, weekly.copy(remaining = value), refreshing, "缓存 · !")
+                val sent = remote(themed, size, weekly.copy(remaining = value), refreshing, "5m")
                 val parcel = Parcel.obtain()
                 val received = try {
                     sent.writeToParcel(parcel, 0)
@@ -129,7 +129,7 @@ class WeeklyWidgetTest {
                 val loader = view.findViewById<ImageView>(R.id.widget_loading_overlay)
                 assertEquals(View.GONE, loader.visibility)
                 assertEquals(View.VISIBLE, view.findViewById<View>(R.id.widget_content).visibility)
-                assertEquals("缓存 · !", view.findViewById<TextView>(R.id.widget_status).text.toString())
+                assertEquals("5m", view.findViewById<TextView>(R.id.widget_status).text.toString())
                 if (size != WidgetSize.COMPACT) assertEquals("更新于 ${localTime(updatedAt / 1000)}", view.findViewById<TextView>(R.id.widget_updated_at).text.toString())
             }
             val nextTick = remote(themed, size, nowSeconds = now + 60).apply(themed, FrameLayout(themed))
@@ -171,7 +171,8 @@ class WeeklyWidgetTest {
                     UsageWidget.updateAll(context)
                     view = widgets.getViewFor(id)
                     assertNull(view.findViewById<View>(R.id.widget_primary_value))
-                    assertTrue(view.findViewById<TextView>(R.id.widget_status).text.contains("缓存"))
+                    assertEquals(widgetRefreshAge(updatedAt, System.currentTimeMillis() / 1000),
+                        view.findViewById<TextView>(R.id.widget_status).text.toString())
                     assertEquals(updatedAt, UsageRepository(context).updatedAt)
                 }
             }
