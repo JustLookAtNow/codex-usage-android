@@ -200,7 +200,16 @@ class GlassWidgetTest {
                         val bitmap = (view.findViewById<ImageView>(progressId).drawable as BitmapDrawable).bitmap
                         assertTrue((0 until bitmap.height).any { bitmap.getPixel(10, it) == color })
                         assertTrue((0 until bitmap.height).any { bitmap.getPixel(980, it) == themed.getColor(R.color.widget_glass_track) })
-                        assertTrue(ColorUtils.calculateContrast(color, themed.getColor(R.color.widget_glass_track)) >= 3.0)
+                        val headX = (value * 10).toInt() - 2
+                        assertTrue(
+                            "White progress head must contrast with track by at least 3:1: $size singleWeekly=$singleWeekly value=$value index=$index",
+                            (0 until bitmap.height).any {
+                                ColorUtils.calculateContrast(
+                                    bitmap.getPixel(headX, it),
+                                    themed.getColor(R.color.widget_glass_track)
+                                ) >= 3.0
+                            }
+                        )
                     }
                 }
             }
