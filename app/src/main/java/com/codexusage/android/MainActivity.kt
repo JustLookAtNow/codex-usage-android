@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.graphics.Typeface
+import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.SpannableStringBuilder
@@ -39,6 +40,13 @@ class MainActivity : Activity() {
     private lateinit var resetToggle: Button
     private lateinit var source: TextView
     private lateinit var feedback: TextView
+    private lateinit var refreshButton: Button
+    private lateinit var refreshIcon: AnimatedVectorDrawable
+    private val refreshPrefs by lazy { getSharedPreferences("widget_refresh", MODE_PRIVATE) }
+    private var refreshing = false
+    private val refreshListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        runOnUiThread { if (!isDestroyed && !isFinishing) updateButtons() }
+    }
     private lateinit var xposedStatusCard: LinearLayout
     private lateinit var xposedStatusHeading: TextView
     private lateinit var xposedStatus: TextView
@@ -89,12 +97,23 @@ class MainActivity : Activity() {
         }
         resetSummary = text("重置点 —", 14, R.color.app_accent, parent = header)
         status = text("", 13, R.color.app_muted)
-        button("立即刷新") {
+        refreshButton = button("立即刷新") {
+            if (refreshing) return@button
             if (CredentialStore(this).mode == null) feedback.text = "请先配置凭据"
             else {
-                feedback.text = "已安排刷新，结果会自动更新"
+                feedback.text = "正在刷新，结果会自动更新"
                 RefreshWorker.now(this)
+                updateButtons()
             }
+        }
+        refreshIcon = (getDrawable(R.drawable.widget_refresh_animated)!!.mutate() as AnimatedVectorDrawable).apply {
+            setTint(getColor(R.color.app_accent))
+            setBounds(0, 0, dp(24), dp(24))
+        }
+        refreshButton.apply {
+            compoundDrawablePadding = dp(8)
+            setCompoundDrawablesRelative(refreshIcon, null, null, null)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         resetToggle = button("展开重置点详情 ▾") {
             resetsExpanded = !resetsExpanded
@@ -171,6 +190,7 @@ class MainActivity : Activity() {
         text("后台按 15 分钟调度，省电模式可能延迟。桌面显示本地恢复倒计时；断网时保留旧数据。Root 模式每次刷新重新读取当前凭据；过期时请打开 ChatGPT 更新登录。导入模式需重新导入。应用不会自行续期 token。", 13, R.color.app_muted)
         text("网络使用手机当前连接（含 VPN），暂不提供应用内代理设置。", 13, R.color.app_muted)
         getSharedPreferences("usage", MODE_PRIVATE).registerOnSharedPreferenceChangeListener(listener)
+        refreshPrefs.registerOnSharedPreferenceChangeListener(refreshListener)
         render()
         updateButtons()
         RefreshWorker.schedule(this)
@@ -203,6 +223,8 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         getSharedPreferences("usage", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(listener)
+        refreshPrefs.unregisterOnSharedPreferenceChangeListener(refreshListener)
+        refreshIcon.stop()
         executor.shutdown()
         super.onDestroy()
     }
@@ -433,6 +455,21 @@ class MainActivity : Activity() {
     private fun updateButtons() {
         val available = !busy && !selectingFile && !confirmingReset
         actions.forEach { it.isEnabled = available }
+        val active = WidgetRefreshState.active(this)
+        refreshButton.isEnabled = available && !active
+        refreshButton.text = if (active) "正在刷新…" else "立即刷新"
+        if (active) {
+            if (!refreshIcon.isRunning) refreshIcon.start()
+        } else {
+            refreshIcon.stop()
+            refreshIcon.reset()
+            if (refreshing) {
+                val repository = UsageRepository(this)
+                feedback.text = repository.error ?: repository.creditsError?.let { "额度已更新，重置点查询失败：$it" }
+                    ?: if (CredentialStore(this).mode == null) "请先配置凭据" else "刷新完成"
+            }
+        }
+        refreshing = active
         resetActions.forEach { (button, eligible) -> button.isEnabled = available && eligible && CredentialStore(this).mode != null }
     }
     private fun resetAction(label: String, parent: LinearLayout, eligible: Boolean, action: () -> Unit) {
