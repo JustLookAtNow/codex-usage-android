@@ -22,6 +22,16 @@
 
 ## 小部件展示
 
+### 透明玻璃 · 实机效果 NEW
+
+ColorOS 17 + LSPosed 能取得最佳的液态玻璃显示效果。
+
+<img src="docs/images/widgets/widget-glass-home-screen-4x2.png" alt="4×2 透明玻璃小部件实机效果：时钟、双列额度、恢复倒计时及进度条光晕" width="608" />
+
+<img src="docs/images/widgets/widget-glass-home-screen.png" alt="4×1 透明玻璃小部件实机效果：时钟、横向双周期额度、恢复倒计时及进度条光晕" width="608" />
+
+### 经典风格与布局示例
+
 左侧为浅色模式，右侧为深色模式。额度与倒计时为示例数据；实际格数和间距随手机桌面设置变化。
 
 下图展示原有风格。透明玻璃风格复用相同的尺寸和信息布局，使用半透明背景、渐变与描边，并随系统切换深浅色。适配的 ColorOS 17 系统桌面可通过 LSPosed 启用实时壁纸模糊；未启用时显示半透明背景。
