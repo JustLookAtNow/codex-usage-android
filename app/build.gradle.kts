@@ -22,8 +22,8 @@ android {
         targetSdk = 36
         versionCode = releaseVersionCode.orNull?.toInt()?.also {
             require(it in 1..2_100_000_000) { "Invalid release versionCode" }
-        } ?: 1_000_003
-        versionName = releaseVersionName.orNull ?: "1.0.2"
+        } ?: 2_000_001
+        versionName = releaseVersionName.orNull ?: "2.0.0"
     }
     if (targetAbi.isPresent) {
         splits {
