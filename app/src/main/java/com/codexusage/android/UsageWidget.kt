@@ -13,10 +13,12 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.SweepGradient
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.SizeF
@@ -317,11 +319,39 @@ open class UsageWidget : AppWidgetProvider() {
                 val angle = Math.toRadians((-90f + sweep).toDouble())
                 val endX = 128f + 114f * kotlin.math.cos(angle).toFloat()
                 val endY = 128f + 114f * kotlin.math.sin(angle).toFloat()
-                if (widgetStyle == WidgetStyle.GLASS) drawGlow(canvas, paint.color, endX, endY, 24f, 24f)
-                canvas.drawArc(bounds, -90f, sweep, false, paint)
+                val clip = if (widgetStyle == WidgetStyle.GLASS && sweep < 360f) Path().apply {
+                    moveTo(128f, 128f)
+                    arcTo(RectF(-128f, -128f, 384f, 384f), -90f, sweep)
+                    close()
+                } else null
                 if (widgetStyle == WidgetStyle.GLASS) {
-                    val glint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ColorUtils.blendARGB(paint.color, Color.WHITE, 0.55f) }
+                    val glowAngle = angle - Math.toRadians(minOf(12f, sweep / 2f).toDouble())
+                    val glowX = 128f + 114f * kotlin.math.cos(glowAngle).toFloat()
+                    val glowY = 128f + 114f * kotlin.math.sin(glowAngle).toFloat()
+                    canvas.save()
+                    if (clip != null) canvas.clipPath(clip)
+                    drawGlow(canvas, paint.color, glowX, glowY, 24f, 24f)
+                    canvas.restore()
+                    val fraction = sweep / 360f
+                    val highlightStart = maxOf(fraction * 0.15f, fraction - 0.16f)
+                    val highlight = ColorUtils.blendARGB(paint.color, Color.WHITE, 0.96f)
+                    val colors = if (fraction < 1f) intArrayOf(paint.color, paint.color, highlight, paint.color)
+                        else intArrayOf(paint.color, paint.color, highlight)
+                    val stops = if (fraction < 1f) floatArrayOf(0f, highlightStart, fraction, 1f)
+                        else floatArrayOf(0f, highlightStart, fraction)
+                    paint.shader = SweepGradient(128f, 128f,
+                        colors, stops).apply {
+                        setLocalMatrix(Matrix().apply { setRotate(-90f, 128f, 128f) })
+                    }
+                }
+                canvas.drawArc(bounds, -90f, sweep, false, paint)
+                paint.shader = null
+                if (widgetStyle == WidgetStyle.GLASS) {
+                    val glint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ColorUtils.blendARGB(paint.color, Color.WHITE, 0.96f) }
+                    canvas.save()
+                    if (clip != null) canvas.clipPath(clip)
                     canvas.drawCircle(endX, endY, 4f, glint)
+                    canvas.restore()
                 }
             }
             val label = percentage(value)
@@ -383,7 +413,13 @@ open class UsageWidget : AppWidgetProvider() {
             val radius = (bottom - top) / 2f
             val fraction = (value ?: 0.0).coerceIn(0.0, 100.0) / 100.0
             val endX = (1000 * fraction).toFloat()
-            if (fraction > 0) drawGlow(canvas, color, endX, centerY, 70f, radius + 9f)
+            if (fraction > 0) {
+                val glowRadius = minOf(70f, endX / 2f)
+                canvas.save()
+                canvas.clipRect(0f, 0f, endX, bitmap.height.toFloat())
+                drawGlow(canvas, color, endX - glowRadius, centerY, glowRadius, radius + 9f)
+                canvas.restore()
+            }
 
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = context.getColor(R.color.widget_glass_track) }
             canvas.drawRoundRect(RectF(0f, top, 1000f, bottom), radius, radius, paint)
@@ -392,8 +428,9 @@ open class UsageWidget : AppWidgetProvider() {
                 val fillRadius = minOf(radius, endX / 2f)
                 paint.color = color
                 canvas.drawRoundRect(fill, fillRadius, fillRadius, paint)
-                paint.shader = LinearGradient(maxOf(0f, endX - 40f), 0f, endX, 0f,
-                    Color.TRANSPARENT, ColorUtils.setAlphaComponent(Color.WHITE, 175), Shader.TileMode.CLAMP)
+                val highlightStart = maxOf(endX * 0.15f, endX - 160f)
+                paint.shader = LinearGradient(highlightStart, 0f, endX, 0f,
+                    Color.TRANSPARENT, ColorUtils.setAlphaComponent(Color.WHITE, 245), Shader.TileMode.CLAMP)
                 canvas.drawRoundRect(fill, fillRadius, fillRadius, paint)
             }
             return bitmap

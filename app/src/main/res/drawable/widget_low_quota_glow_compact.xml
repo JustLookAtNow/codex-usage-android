@@ -6,10 +6,4 @@
                 android:centerColor="@color/widget_glass_low_glow_mid" android:endColor="@android:color/transparent" />
         </shape>
     </item>
-    <item android:height="1dp" android:gravity="bottom|fill_horizontal">
-        <shape android:shape="rectangle">
-            <gradient android:angle="0" android:startColor="@color/widget_glass_low_glow_rim_end"
-                android:centerColor="@color/widget_glass_low_glow_rim" android:endColor="@color/widget_glass_low_glow_rim_end" />
-        </shape>
-    </item>
 </layer-list>

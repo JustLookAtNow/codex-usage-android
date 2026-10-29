@@ -198,7 +198,7 @@ class GlassWidgetTest {
                     if (size != WidgetSize.COMPACT) {
                         val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
                         val bitmap = (view.findViewById<ImageView>(progressId).drawable as BitmapDrawable).bitmap
-                        assertTrue((0 until bitmap.height).any { bitmap.getPixel(100, it) == color })
+                        assertTrue((0 until bitmap.height).any { bitmap.getPixel(10, it) == color })
                         assertTrue((0 until bitmap.height).any { bitmap.getPixel(980, it) == themed.getColor(R.color.widget_glass_track) })
                         assertTrue(ColorUtils.calculateContrast(color, themed.getColor(R.color.widget_glass_track)) >= 3.0)
                     }
@@ -256,6 +256,9 @@ class GlassWidgetTest {
             val bottom = bitmap.getPixel(150, 98)
             assertTrue("size=$size night=$night: bottom glow must be red", Color.alpha(bottom) > 0 &&
                 Color.red(bottom) > Color.green(bottom) && Color.red(bottom) > Color.blue(bottom))
+            val above = 99 - kotlin.math.ceil(themed.resources.displayMetrics.density).toInt().coerceAtLeast(1)
+            assertTrue("size=$size night=$night: bottom glow should not have a sharp rim",
+                kotlin.math.abs(Color.alpha(bitmap.getPixel(150, 99)) - Color.alpha(bitmap.getPixel(150, above))) <= 20)
         }
     }
 
@@ -263,17 +266,35 @@ class GlassWidgetTest {
         val themed = themed(false)
         val color = themed.getColor(R.color.widget_glass_primary)
         val progress = UsageWidget.quotaProgress(themed, 50.0, color, WidgetStyle.GLASS, WidgetSize.WIDE)
-        assertTrue("The progress endpoint should glow outside the bar", Color.alpha(progress.getPixel(500, 0)) > 0)
+        assertTrue("The filled part should glow outside the bar", Color.alpha(progress.getPixel(430, 1)) > 0)
         val centerY = ((3f + 2f) * progress.height / 12f).toInt()
-        assertTrue("The progress tip should be brighter than the fill",
-            ColorUtils.calculateLuminance(progress.getPixel(495, centerY)) > ColorUtils.calculateLuminance(color))
+        val tip = progress.getPixel(498, centerY)
+        assertTrue("The progress tip should be nearly white",
+            Color.red(tip) >= 230 && Color.green(tip) >= 230 && Color.blue(tip) >= 230)
+        val fade = listOf(350, 410, 470).map { ColorUtils.calculateLuminance(progress.getPixel(it, centerY)) }
+        assertTrue("The highlight should brighten gradually over a longer segment", fade[0] < fade[1] && fade[1] < fade[2])
+        for (value in listOf(9.0, 50.0, 86.0)) {
+            val bitmap = UsageWidget.quotaProgress(themed, value, color, WidgetStyle.GLASS, WidgetSize.WIDE)
+            val end = (value * 10).toInt()
+            for (y in listOf(0, 1, 2, 26, 27, 31)) for (x in end until bitmap.width) {
+                assertEquals("glow exceeds $value% at $x,$y", 0, Color.alpha(bitmap.getPixel(x, y)))
+            }
+            assertEquals(themed.getColor(R.color.widget_glass_track), bitmap.getPixel(end + 10, centerY))
+        }
         for (value in listOf(null, 0.0)) {
             val empty = UsageWidget.quotaProgress(themed, value, color, WidgetStyle.GLASS, WidgetSize.WIDE)
             assertEquals(0, Color.alpha(empty.getPixel(500, 0)))
         }
         val dark = themed(true)
         val ring = UsageWidget.quotaRing(dark, 50.0, false, WidgetStyle.GLASS)
-        assertTrue("The dark ring endpoint should have a soft glow", Color.alpha(ring.getPixel(128, 220)) > 0)
+        assertTrue("The dark ring endpoint should have a soft glow", Color.alpha(ring.getPixel(150, 218)) > 0)
+        val ringTip = ring.getPixel(130, 240)
+        assertTrue("The dark ring tip should be nearly white",
+            Color.red(ringTip) >= 230 && Color.green(ringTip) >= 230 && Color.blue(ringTip) >= 230)
+        val lowRing = UsageWidget.quotaRing(dark, 9.0, false, WidgetStyle.GLASS)
+        val ringStart = lowRing.getPixel(125, 14)
+        assertTrue("The dark ring should retain its quota color at the start",
+            Color.alpha(ringStart) >= 240 && Color.green(ringStart) < 200 && Color.blue(ringStart) < 200)
     }
 
     @Test fun glassProgressGlowKeepsBarAndCountdownPositions() {
