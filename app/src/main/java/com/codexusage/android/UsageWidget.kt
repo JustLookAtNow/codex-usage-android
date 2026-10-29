@@ -287,9 +287,10 @@ open class UsageWidget : AppWidgetProvider() {
             views.setViewLayoutMargin(id, RemoteViews.MARGIN_BOTTOM, 0f, TypedValue.COMPLEX_UNIT_DIP)
         }
 
-        private fun drawGlow(canvas: Canvas, color: Int, x: Float, y: Float, radiusX: Float, radiusY: Float) {
+        private fun drawGlow(canvas: Canvas, color: Int, x: Float, y: Float, radiusX: Float, radiusY: Float,
+            alpha: Int = 110) {
             val gradient = RadialGradient(x, y, radiusX,
-                intArrayOf(ColorUtils.setAlphaComponent(color, 110), ColorUtils.setAlphaComponent(color, 65),
+                intArrayOf(ColorUtils.setAlphaComponent(color, alpha), ColorUtils.setAlphaComponent(color, alpha * 65 / 110),
                     ColorUtils.setAlphaComponent(color, 0)),
                 floatArrayOf(0f, 0.4f, 1f), Shader.TileMode.CLAMP)
             gradient.setLocalMatrix(Matrix().apply { setScale(1f, radiusY / radiusX, x, y) })
@@ -413,11 +414,14 @@ open class UsageWidget : AppWidgetProvider() {
             val radius = (bottom - top) / 2f
             val fraction = (value ?: 0.0).coerceIn(0.0, 100.0) / 100.0
             val endX = (1000 * fraction).toFloat()
+            // The satin highlight lives in the last quarter of the fill. Short bars
+            // need a longer relative transition so a low quota still reads as glass.
+            val highlightLength = minOf(endX * 0.85f, maxOf(64f, endX * 0.25f))
             if (fraction > 0) {
-                val glowRadius = minOf(70f, endX / 2f)
+                val glowRadius = highlightLength / 2f
                 canvas.save()
                 canvas.clipRect(0f, 0f, endX, bitmap.height.toFloat())
-                drawGlow(canvas, color, endX - glowRadius, centerY, glowRadius, radius + 9f)
+                drawGlow(canvas, color, endX - glowRadius, centerY, glowRadius, radius + 3f, alpha = 24)
                 canvas.restore()
             }
 
@@ -428,10 +432,18 @@ open class UsageWidget : AppWidgetProvider() {
                 val fillRadius = minOf(radius, endX / 2f)
                 paint.color = color
                 canvas.drawRoundRect(fill, fillRadius, fillRadius, paint)
-                val highlightStart = maxOf(endX * 0.15f, endX - 160f)
+                val highlightStart = endX - highlightLength
                 paint.shader = LinearGradient(highlightStart, 0f, endX, 0f,
-                    Color.TRANSPARENT, ColorUtils.setAlphaComponent(Color.WHITE, 245), Shader.TileMode.CLAMP)
+                    intArrayOf(0x00FFFFFF, 0x10FFFFFF, 0x50FFFFFF, 0xADFFFFFF.toInt(), 0xF5FFFFFF.toInt()),
+                    floatArrayOf(0f, 0.25f, 0.55f, 0.8f, 1f), Shader.TileMode.CLAMP)
                 canvas.drawRoundRect(fill, fillRadius, fillRadius, paint)
+                // A narrow reflection inside the rounded fill replaces the separate
+                // luminous head. Its soft edges cannot light the unfilled track.
+                canvas.save()
+                canvas.clipPath(Path().apply { addRoundRect(fill, fillRadius, fillRadius, Path.Direction.CW) })
+                drawGlow(canvas, Color.WHITE, endX - highlightLength * 0.2f,
+                    top + radius * 0.65f, highlightLength * 0.6f, radius * 0.45f, alpha = 80)
+                canvas.restore()
             }
             return bitmap
         }

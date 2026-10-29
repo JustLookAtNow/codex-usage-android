@@ -266,8 +266,13 @@ class GlassWidgetTest {
         val themed = themed(false)
         val color = themed.getColor(R.color.widget_glass_primary)
         val progress = UsageWidget.quotaProgress(themed, 50.0, color, WidgetStyle.GLASS, WidgetSize.WIDE)
-        assertTrue("The filled part should glow outside the bar", Color.alpha(progress.getPixel(430, 1)) > 0)
+        assertTrue("The satin highlight should have a restrained haze beside the bar",
+            Color.alpha(progress.getPixel(468, 7)) in 1..24)
+        assertEquals("The haze should fade before reaching the outer margin", 0,
+            Color.alpha(progress.getPixel(468, 1)))
         val centerY = ((3f + 2f) * progress.height / 12f).toInt()
+        assertEquals("Most of the fill should retain its quota color", color,
+            progress.getPixel(350, centerY))
         val tip = progress.getPixel(498, centerY)
         assertTrue("The progress tip should be nearly white",
             Color.red(tip) >= 230 && Color.green(tip) >= 230 && Color.blue(tip) >= 230)
