@@ -8,4 +8,8 @@
     <color name="widget_glass_critical">#A82B2B</color>
     <color name="widget_glass_track">#C5DED4</color>
     <color name="widget_glass_divider">#3000211B</color>
+    <color name="widget_glass_low_glow_edge">#70E83742</color>
+    <color name="widget_glass_low_glow_mid">#28F04450</color>
+    <color name="widget_glass_low_glow_rim">#A0E8303D</color>
+    <color name="widget_glass_low_glow_rim_end">#40E8303D</color>
 </resources>

@@ -9,14 +9,21 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.SizeF
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
+import androidx.core.graphics.ColorUtils
 import androidx.core.os.BundleCompat
 import java.time.Instant
 import java.time.ZoneId
@@ -126,7 +133,11 @@ open class UsageWidget : AppWidgetProvider() {
                 WidgetSize.COMPACT -> R.layout.usage_widget_compact
             }
             val views = RemoteViews(context.packageName, layout)
-            if (style == WidgetStyle.GLASS) applyGlassStyle(context, views, size)
+            if (style == WidgetStyle.GLASS) {
+                applyGlassStyle(context, views, size)
+                val lowQuota = configured && windows.any { window -> window?.remaining?.let { it <= 10.0 } == true }
+                views.setViewVisibility(R.id.widget_low_quota_glow, if (lowQuota) View.VISIBLE else View.GONE)
+            }
             views.setImageViewResource(R.id.widget_refresh_icon, when {
                 failed -> R.drawable.ic_widget_refresh_warning
                 style == WidgetStyle.GLASS -> R.drawable.ic_widget_glass_refresh
@@ -161,7 +172,8 @@ open class UsageWidget : AppWidgetProvider() {
                 views.setTextViewText(if (index == 0) R.id.widget_primary_countdown else R.id.widget_weekly_countdown, countdownLabel)
                 if (size != WidgetSize.COMPACT) {
                     val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
-                    views.setImageViewBitmap(progressId, quotaProgress(context, value, color, style))
+                    if (style == WidgetStyle.GLASS) applyGlassProgressLayout(views, progressId, size, singleWeekly)
+                    views.setImageViewBitmap(progressId, quotaProgress(context, value, color, style, size, singleWeekly))
                     views.setContentDescription(progressId, "$label 可用 $percent")
                     views.setImageViewBitmap(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, rings[index])
                     views.setContentDescription(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, "$label 可用 $percent")
@@ -223,6 +235,8 @@ open class UsageWidget : AppWidgetProvider() {
             views.setInt(R.id.widget_root, "setBackgroundResource",
                 if (size == WidgetSize.COMPACT) R.drawable.widget_compact_glass_background else R.drawable.widget_glass_background)
             views.setViewVisibility(R.id.widget_glass_blur, View.VISIBLE)
+            views.setInt(R.id.widget_low_quota_glow, "setBackgroundResource",
+                if (size == WidgetSize.LARGE) R.drawable.widget_low_quota_glow else R.drawable.widget_low_quota_glow_compact)
             val muted = context.getColor(R.color.widget_glass_muted)
             for (id in intArrayOf(R.id.widget_status, R.id.widget_primary_countdown, R.id.widget_weekly_countdown,
                 R.id.widget_updated_at, R.id.widget_static_muted_1, R.id.widget_static_muted_2, R.id.widget_static_muted_3)) {
@@ -253,6 +267,34 @@ open class UsageWidget : AppWidgetProvider() {
             }
         }
 
+        // Keep each progress view's total height and the bar's position unchanged while
+        // using its existing margins as transparent space for the glow.
+        private data class GlassProgressMetrics(val heightDp: Int, val topDp: Int, val barDp: Int)
+
+        private fun glassProgressMetrics(size: WidgetSize, singleWeekly: Boolean): GlassProgressMetrics = when {
+            singleWeekly && size == WidgetSize.LARGE -> GlassProgressMetrics(10, 0, 4)
+            singleWeekly -> GlassProgressMetrics(9, 3, 4)
+            size == WidgetSize.LARGE -> GlassProgressMetrics(15, 3, 7)
+            else -> GlassProgressMetrics(12, 3, 4)
+        }
+
+        private fun applyGlassProgressLayout(views: RemoteViews, id: Int, size: WidgetSize, singleWeekly: Boolean) {
+            val metrics = glassProgressMetrics(size, singleWeekly)
+            views.setViewLayoutHeight(id, metrics.heightDp.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+            views.setViewLayoutMargin(id, RemoteViews.MARGIN_TOP, 0f, TypedValue.COMPLEX_UNIT_DIP)
+            views.setViewLayoutMargin(id, RemoteViews.MARGIN_BOTTOM, 0f, TypedValue.COMPLEX_UNIT_DIP)
+        }
+
+        private fun drawGlow(canvas: Canvas, color: Int, x: Float, y: Float, radiusX: Float, radiusY: Float) {
+            val gradient = RadialGradient(x, y, radiusX,
+                intArrayOf(ColorUtils.setAlphaComponent(color, 110), ColorUtils.setAlphaComponent(color, 65),
+                    ColorUtils.setAlphaComponent(color, 0)),
+                floatArrayOf(0f, 0.4f, 1f), Shader.TileMode.CLAMP)
+            gradient.setLocalMatrix(Matrix().apply { setScale(1f, radiusY / radiusX, x, y) })
+            val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = gradient }
+            canvas.drawRect(x - radiusX, y - radiusY, x + radiusX, y + radiusY, glow)
+        }
+
         // Scale the night-mode percentage with its ring. A separate full-column TextView
         // fits the column width rather than the circle's inner diameter on short widgets.
         internal fun quotaRing(context: Context, value: Double?, weekly: Boolean, widgetStyle: WidgetStyle = WidgetStyle.STANDARD): Bitmap {
@@ -271,7 +313,16 @@ open class UsageWidget : AppWidgetProvider() {
                     if (weekly) R.color.widget_glass_weekly else R.color.widget_glass_primary
                 } else if (weekly) R.color.widget_weekly else R.color.widget_primary
                 paint.color = widgetQuotaColor(context, value, context.getColor(colorResource), widgetStyle)
-                canvas.drawArc(bounds, -90f, (value.coerceIn(0.0, 100.0) * 3.6).toFloat(), false, paint)
+                val sweep = (value.coerceIn(0.0, 100.0) * 3.6).toFloat()
+                val angle = Math.toRadians((-90f + sweep).toDouble())
+                val endX = 128f + 114f * kotlin.math.cos(angle).toFloat()
+                val endY = 128f + 114f * kotlin.math.sin(angle).toFloat()
+                if (widgetStyle == WidgetStyle.GLASS) drawGlow(canvas, paint.color, endX, endY, 24f, 24f)
+                canvas.drawArc(bounds, -90f, sweep, false, paint)
+                if (widgetStyle == WidgetStyle.GLASS) {
+                    val glint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ColorUtils.blendARGB(paint.color, Color.WHITE, 0.55f) }
+                    canvas.drawCircle(endX, endY, 4f, glint)
+                }
             }
             val label = percentage(value)
             paint.apply {
@@ -300,7 +351,9 @@ open class UsageWidget : AppWidgetProvider() {
         }
 
         // Bitmap colors survive RemoteViews on Android 8+, including older launchers.
-        internal fun quotaProgress(context: Context, value: Double?, color: Int, widgetStyle: WidgetStyle = WidgetStyle.STANDARD): Bitmap {
+        internal fun quotaProgress(context: Context, value: Double?, color: Int, widgetStyle: WidgetStyle = WidgetStyle.STANDARD,
+            size: WidgetSize = WidgetSize.LARGE, singleWeekly: Boolean = false): Bitmap {
+            if (widgetStyle == WidgetStyle.GLASS) return glassQuotaProgress(context, value, color, size, singleWeekly)
             val bitmap = Bitmap.createBitmap(1000, 20, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -315,6 +368,33 @@ open class UsageWidget : AppWidgetProvider() {
                 paint.color = color
                 canvas.drawRoundRect(bounds, 10f, 10f, paint)
                 canvas.restore()
+            }
+            return bitmap
+        }
+
+        private fun glassQuotaProgress(context: Context, value: Double?, color: Int, size: WidgetSize,
+            singleWeekly: Boolean): Bitmap {
+            val metrics = glassProgressMetrics(size, singleWeekly)
+            val bitmap = Bitmap.createBitmap(1000, 32, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val top = metrics.topDp * 32f / metrics.heightDp
+            val bottom = (metrics.topDp + metrics.barDp) * 32f / metrics.heightDp
+            val centerY = (top + bottom) / 2f
+            val radius = (bottom - top) / 2f
+            val fraction = (value ?: 0.0).coerceIn(0.0, 100.0) / 100.0
+            val endX = (1000 * fraction).toFloat()
+            if (fraction > 0) drawGlow(canvas, color, endX, centerY, 70f, radius + 9f)
+
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = context.getColor(R.color.widget_glass_track) }
+            canvas.drawRoundRect(RectF(0f, top, 1000f, bottom), radius, radius, paint)
+            if (fraction > 0) {
+                val fill = RectF(0f, top, endX, bottom)
+                val fillRadius = minOf(radius, endX / 2f)
+                paint.color = color
+                canvas.drawRoundRect(fill, fillRadius, fillRadius, paint)
+                paint.shader = LinearGradient(maxOf(0f, endX - 40f), 0f, endX, 0f,
+                    Color.TRANSPARENT, ColorUtils.setAlphaComponent(Color.WHITE, 175), Shader.TileMode.CLAMP)
+                canvas.drawRoundRect(fill, fillRadius, fillRadius, paint)
             }
             return bitmap
         }

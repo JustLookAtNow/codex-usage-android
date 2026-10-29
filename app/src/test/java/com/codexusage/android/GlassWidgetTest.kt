@@ -11,6 +11,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.util.SizeF
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.RemoteViews
@@ -197,11 +198,126 @@ class GlassWidgetTest {
                     if (size != WidgetSize.COMPACT) {
                         val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
                         val bitmap = (view.findViewById<ImageView>(progressId).drawable as BitmapDrawable).bitmap
-                        assertEquals(color, bitmap.getPixel(100, 10))
-                        assertEquals(themed.getColor(R.color.widget_glass_track), bitmap.getPixel(980, 10))
+                        assertTrue((0 until bitmap.height).any { bitmap.getPixel(100, it) == color })
+                        assertTrue((0 until bitmap.height).any { bitmap.getPixel(980, it) == themed.getColor(R.color.widget_glass_track) })
                         assertTrue(ColorUtils.calculateContrast(color, themed.getColor(R.color.widget_glass_track)) >= 3.0)
                     }
                 }
+            }
+        }
+    }
+
+    @Test fun lowQuotaGlowTracksDisplayedRemainingAcrossSizesAndThemes() {
+        for (night in listOf(false, true)) {
+            val themed = themed(night)
+            for (size in WidgetSize.entries) {
+                val cases = listOf(
+                    listOf(windows[0].copy(remaining = 10.0), windows[1]) to View.VISIBLE,
+                    listOf(windows[0].copy(remaining = 10.0001), windows[1]) to View.GONE,
+                    listOf(windows[0], windows[1].copy(remaining = 0.0)) to View.VISIBLE,
+                    listOf(windows[0].copy(remaining = null), windows[1]) to View.GONE,
+                    listOf(null, windows[1].copy(remaining = 10.0)) to View.VISIBLE,
+                    listOf(null, windows[1].copy(remaining = 10.0001)) to View.GONE,
+                    listOf(null, null) to View.GONE
+                )
+                for ((values, expected) in cases) {
+                    val view = glassViews(themed, size, values).apply(themed, FrameLayout(themed))
+                    assertEquals("size=$size night=$night values=$values", expected,
+                        view.findViewById<View>(R.id.widget_low_quota_glow).visibility)
+                }
+                val low = listOf(windows[0].copy(remaining = 1.0), windows[1])
+                val rings = low.mapIndexed { index, window -> UsageWidget.quotaRing(themed, window.remaining, index == 1) }
+                val standard = UsageWidget.createViews(themed, size, low, rings, now, "", "", true)
+                    .apply(themed, FrameLayout(themed))
+                assertEquals(View.GONE, standard.findViewById<View>(R.id.widget_low_quota_glow).visibility)
+                val unconfigured = UsageWidget.createViews(themed, size, low, rings, now, "", "", false,
+                    style = WidgetStyle.GLASS).apply(themed, FrameLayout(themed))
+                assertEquals(View.GONE, unconfigured.findViewById<View>(R.id.widget_low_quota_glow).visibility)
+
+                val view = glassViews(themed, size, low).apply(themed, FrameLayout(themed))
+                glassViews(themed, size, windows).reapply(themed, view)
+                assertEquals(View.GONE, view.findViewById<View>(R.id.widget_low_quota_glow).visibility)
+                glassViews(themed, size, low).reapply(themed, view)
+                assertEquals(View.VISIBLE, view.findViewById<View>(R.id.widget_low_quota_glow).visibility)
+            }
+        }
+    }
+
+    @Test fun lowQuotaGlowIsRedAndLimitedToBottomEdge() {
+        for (night in listOf(false, true)) for (size in WidgetSize.entries) {
+            val themed = themed(night)
+            val values = listOf(windows[0].copy(remaining = 9.0), windows[1])
+            val view = glassViews(themed, size, values).apply(themed, FrameLayout(themed))
+            val drawable = view.findViewById<View>(R.id.widget_low_quota_glow).background
+            val bitmap = Bitmap.createBitmap(300, 100, Bitmap.Config.ARGB_8888)
+            drawable.setBounds(0, 0, bitmap.width, bitmap.height)
+            drawable.draw(Canvas(bitmap))
+            assertEquals(0, Color.alpha(bitmap.getPixel(150, 10)))
+            val bottom = bitmap.getPixel(150, 98)
+            assertTrue("size=$size night=$night: bottom glow must be red", Color.alpha(bottom) > 0 &&
+                Color.red(bottom) > Color.green(bottom) && Color.red(bottom) > Color.blue(bottom))
+        }
+    }
+
+    @Test fun glassProgressHasGlowAndHighlightOnlyForKnownPositiveQuota() {
+        val themed = themed(false)
+        val color = themed.getColor(R.color.widget_glass_primary)
+        val progress = UsageWidget.quotaProgress(themed, 50.0, color, WidgetStyle.GLASS, WidgetSize.WIDE)
+        assertTrue("The progress endpoint should glow outside the bar", Color.alpha(progress.getPixel(500, 0)) > 0)
+        val centerY = ((3f + 2f) * progress.height / 12f).toInt()
+        assertTrue("The progress tip should be brighter than the fill",
+            ColorUtils.calculateLuminance(progress.getPixel(495, centerY)) > ColorUtils.calculateLuminance(color))
+        for (value in listOf(null, 0.0)) {
+            val empty = UsageWidget.quotaProgress(themed, value, color, WidgetStyle.GLASS, WidgetSize.WIDE)
+            assertEquals(0, Color.alpha(empty.getPixel(500, 0)))
+        }
+        val dark = themed(true)
+        val ring = UsageWidget.quotaRing(dark, 50.0, false, WidgetStyle.GLASS)
+        assertTrue("The dark ring endpoint should have a soft glow", Color.alpha(ring.getPixel(128, 220)) > 0)
+    }
+
+    @Test fun glassProgressGlowKeepsBarAndCountdownPositions() {
+        val themed = themed(false)
+        val density = themed.resources.displayMetrics.density
+        for (size in listOf(WidgetSize.WIDE, WidgetSize.LARGE)) for (singleWeekly in listOf(false, true)) {
+            val values: List<UsageWindow?> = if (singleWeekly) weeklyOnly else windows
+            fun render(style: WidgetStyle, widthDp: Int, heightDp: Int): View {
+                val rings = values.mapIndexed { index, window ->
+                    UsageWidget.quotaRing(themed, window?.remaining, index == 1, style)
+                }
+                val view = UsageWidget.createViews(themed, size, values, rings, now, "", "", true, style = style)
+                    .apply(themed, FrameLayout(themed))
+                view.measure(View.MeasureSpec.makeMeasureSpec((widthDp * density).toInt(), View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec((heightDp * density).toInt(), View.MeasureSpec.EXACTLY))
+                view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+                return view
+            }
+            fun yInRoot(view: View): Int {
+                var y = view.top
+                var parent = view.parent
+                while (parent is View && parent.id != R.id.widget_root) {
+                    y += parent.top
+                    parent = parent.parent
+                }
+                return y
+            }
+            for ((width, height) in if (size == WidgetSize.WIDE) listOf(240 to 64, 320 to 80)
+                else listOf(240 to 140, 320 to 160)) {
+                val standard = render(WidgetStyle.STANDARD, width, height)
+                val glass = render(WidgetStyle.GLASS, width, height)
+                val id = if (singleWeekly) R.id.widget_weekly_progress else R.id.widget_primary_progress
+                val standardBar = standard.findViewById<View>(id)
+                val glassBar = glass.findViewById<View>(id)
+                val standardParams = standardBar.layoutParams as ViewGroup.MarginLayoutParams
+                val glassParams = glassBar.layoutParams as ViewGroup.MarginLayoutParams
+                assertEquals(standardBar.height + standardParams.topMargin + standardParams.bottomMargin,
+                    glassBar.height + glassParams.topMargin + glassParams.bottomMargin)
+                val topInset = if (singleWeekly && size == WidgetSize.LARGE) 0 else (3 * density).toInt()
+                assertTrue("bar shifted: $size singleWeekly=$singleWeekly ${width}x$height",
+                    kotlin.math.abs(yInRoot(standardBar) - (yInRoot(glassBar) + topInset)) <= 1)
+                val countdown = if (singleWeekly) R.id.widget_weekly_countdown else R.id.widget_primary_countdown
+                assertEquals("countdown shifted: $size singleWeekly=$singleWeekly ${width}x$height",
+                    yInRoot(standard.findViewById(countdown)), yInRoot(glass.findViewById(countdown)))
             }
         }
     }
