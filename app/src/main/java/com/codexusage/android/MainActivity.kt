@@ -15,7 +15,6 @@ import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
-import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -64,8 +63,6 @@ class MainActivity : Activity() {
         }
         selectingFile = savedInstanceState?.getBoolean("selecting_file") ?: false
         resetsExpanded = savedInstanceState?.getBoolean("resets_expanded") ?: false
-        // Credential import is intentionally excluded from screenshots and recent-app previews.
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         val scroll = ScrollView(this).apply { isFillViewport = true; setBackgroundColor(getColor(R.color.app_background)) }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
