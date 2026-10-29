@@ -23,7 +23,10 @@ class UsageRepository(
     private val context: Context,
     private val loadCredentials: () -> Credentials = { CredentialStore(context).load() },
     private val openConnection: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection },
-    private val notifyWeeklyReset: () -> Unit = { WeeklyResetNotifications(context).notifyReset() }
+    private val notifyWeeklyReset: () -> Unit = { WeeklyResetNotifications(context).notifyReset() },
+    private val notifyNewResetCredits: (Int, Int) -> Unit = { added, available ->
+        ResetCreditNotifications(context).notifyAdded(added, available)
+    }
 ) {
     private val prefs = context.getSharedPreferences("usage", Context.MODE_PRIVATE)
     val body: String? get() = prefs.getString("body", null)
@@ -74,9 +77,17 @@ class UsageRepository(
 
     private fun fetchCredits(credentials: Credentials): ResetCredits {
         val value = ResetCreditsParser.parse(request("rate-limit-reset-credits", credentials))
+        val previous = if (prefs.contains("credits_notification_baseline"))
+            prefs.getInt("credits_notification_baseline", 0) else credits
         prefs.edit().putInt("credits", value.availableCount)
+            .putInt("credits_notification_baseline", value.availableCount)
             .putString("credits_body", ResetCreditsParser.displayJson(value))
             .putLong("credits_updated_at", System.currentTimeMillis()).remove("credits_error").save()
+        if (previous != null && value.availableCount > previous) {
+            // Advance the baseline even if delivery is disabled or fails; never replay alerts.
+            try { notifyNewResetCredits(value.availableCount - previous, value.availableCount) }
+            catch (_: Exception) { }
+        }
         return value
     }
 

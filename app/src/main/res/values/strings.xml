@@ -3,7 +3,10 @@
     <string name="weekly_reset_channel">周额度重置提醒</string>
     <string name="weekly_reset_title">周额度已重置</string>
     <string name="weekly_reset_message">额度已重置，尽情使用吧！</string>
-    <string name="notification_settings">额度重置通知设置</string>
+    <string name="reset_credit_channel">新增重置点提醒</string>
+    <string name="reset_credit_title">新的重置点到账！</string>
+    <string name="reset_credit_message">新增 %1$d 个重置点，当前可用 %2$d 个</string>
+    <string name="notification_settings">通知设置</string>
     <string name="widget_title" translatable="false">CODEX</string>
     <string name="widget_period_5h" translatable="false">5h</string>
     <string name="widget_period_weekly" translatable="false">Weekly</string>
