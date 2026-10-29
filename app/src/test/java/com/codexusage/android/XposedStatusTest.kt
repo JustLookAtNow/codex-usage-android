@@ -143,9 +143,13 @@ class XposedStatusTest {
             val page = card.parent as ViewGroup
             val refresh = views.filterIsInstance<Button>().single { it.text == "立即刷新" }
             val glassWidget = views.filterIsInstance<Button>().single { it.text == "添加透明玻璃小部件" }
+            val notificationSettings = views.filterIsInstance<Button>().single {
+                it.text.toString() == application.getString(R.string.notification_settings)
+            }
             assertEquals("LSPosed · 要求 API 102+", title.text.toString())
             assertTrue(page.indexOfChild(refresh) < page.indexOfChild(card))
-            assertEquals(page.indexOfChild(glassWidget) + 1, page.indexOfChild(card))
+            assertEquals(page.indexOfChild(glassWidget) + 1, page.indexOfChild(notificationSettings))
+            assertEquals(page.indexOfChild(notificationSettings) + 1, page.indexOfChild(card))
             awaitText(heading, "模块服务未连接")
             val attentionBackground = (card.background as GradientDrawable).color!!.defaultColor
             assertTrue(ColorUtils.calculateContrast(heading.currentTextColor, attentionBackground) >= 4.5)
