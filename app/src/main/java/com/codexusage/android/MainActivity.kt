@@ -108,6 +108,7 @@ class MainActivity : Activity() {
         resetStatus = text("", 13, R.color.app_muted)
         button("添加原有小部件") { pinWidget(glass = false) }
         button("添加透明玻璃小部件") { pinWidget(glass = true) }
+        button(getString(R.string.notification_settings)) { WeeklyResetNotifications(this).openSettings() }
         xposedStatusCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(14))
@@ -176,6 +177,7 @@ class MainActivity : Activity() {
         render()
         updateButtons()
         RefreshWorker.schedule(this)
+        WeeklyResetNotifications(this).requestPermissionOnce(this)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

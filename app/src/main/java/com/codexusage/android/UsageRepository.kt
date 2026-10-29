@@ -22,7 +22,8 @@ private fun SharedPreferences.Editor.save() {
 class UsageRepository(
     private val context: Context,
     private val loadCredentials: () -> Credentials = { CredentialStore(context).load() },
-    private val openConnection: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection }
+    private val openConnection: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection },
+    private val notifyWeeklyReset: () -> Unit = { WeeklyResetNotifications(context).notifyReset() }
 ) {
     private val prefs = context.getSharedPreferences("usage", Context.MODE_PRIVATE)
     val body: String? get() = prefs.getString("body", null)
@@ -47,10 +48,16 @@ class UsageRepository(
         try {
             val credentials = loadCredentials()
             val usageBody = request("usage", credentials)
+            val previous = usage()
+            val current = UsageParser.parse(usageBody)
             // Persist only public display fields, never raw server responses.
-            val cached = UsageParser.displayJson(UsageParser.parse(usageBody))
+            val cached = UsageParser.displayJson(current)
             prefs.edit().putString("body", cached).putLong("updated_at", System.currentTimeMillis())
                 .remove("error").save()
+            if (shouldNotifyWeeklyReset(previous, current)) {
+                // Notification delivery must never turn a successful refresh into an error.
+                try { notifyWeeklyReset() } catch (_: Exception) { }
+            }
             try {
                 fetchCredits(credentials)
             } catch (error: UserError) {

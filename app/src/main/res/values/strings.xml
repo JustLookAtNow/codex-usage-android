@@ -1,5 +1,9 @@
 <resources>
     <string name="app_name">Codex 余量</string>
+    <string name="weekly_reset_channel">周额度重置提醒</string>
+    <string name="weekly_reset_title">周额度已重置</string>
+    <string name="weekly_reset_message">额度已重置，尽情使用吧！</string>
+    <string name="notification_settings">额度重置通知设置</string>
     <string name="widget_title" translatable="false">CODEX</string>
     <string name="widget_period_5h" translatable="false">5h</string>
     <string name="widget_period_weekly" translatable="false">Weekly</string>
