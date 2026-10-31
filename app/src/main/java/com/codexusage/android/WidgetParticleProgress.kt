@@ -52,8 +52,9 @@ internal object WidgetParticleProgress {
     }
 
     fun particleColor(context: Context, value: Double): Int = when {
+        value == 100.0 -> context.getColor(R.color.widget_particle_gold)
         value <= 15.0 -> context.getColor(R.color.widget_particle_ruby)
-        value <= 40.0 || value == 100.0 -> context.getColor(R.color.widget_particle_amber)
+        value <= 40.0 -> context.getColor(R.color.widget_particle_amber)
         else -> Color.WHITE
     }
 

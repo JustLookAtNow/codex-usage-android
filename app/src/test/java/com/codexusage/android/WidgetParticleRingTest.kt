@@ -164,7 +164,11 @@ class WidgetParticleRingTest {
                         measure(context, view!!, 360, if (size == WidgetSize.LARGE) 168 else 80)
                         val particlesId = if (single) R.id.widget_weekly_ring_particles else R.id.widget_primary_ring_particles
                         val spinner = view.findViewById<FrameLayout>(particlesId).findViewById<ProgressBar>(R.id.widget_ring_particles)
-                        assertEquals(context.getColor(if (value <= 15.0) R.color.widget_particle_ruby else R.color.widget_particle_amber),
+                        assertEquals(context.getColor(when {
+                            value == 100.0 -> R.color.widget_particle_gold
+                            value <= 15.0 -> R.color.widget_particle_ruby
+                            else -> R.color.widget_particle_amber
+                        }),
                             spinner.indeterminateTintList!!.defaultColor)
                         val animated = prepare(spinner)
                         val ringId = if (single) R.id.widget_weekly_ring else R.id.widget_primary_ring
