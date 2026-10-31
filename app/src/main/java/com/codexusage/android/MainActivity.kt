@@ -122,6 +122,8 @@ class MainActivity : Activity() {
         refreshButton.apply {
             compoundDrawablePadding = dp(8)
             setCompoundDrawablesRelative(refreshIcon, null, null, null)
+            gravity = Gravity.CENTER
+            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> centerRefreshButtonContent() }
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         resetToggle = button("展开重置点详情 ▾") {
@@ -486,6 +488,7 @@ class MainActivity : Activity() {
         val active = WidgetRefreshState.active(this)
         refreshButton.isEnabled = available && !active
         refreshButton.text = if (active) "正在刷新…" else "立即刷新"
+        centerRefreshButtonContent()
         if (active) {
             if (!refreshIcon.isRunning) refreshIcon.start()
         } else {
@@ -509,6 +512,17 @@ class MainActivity : Activity() {
         resetActions += button to eligible
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+    private fun centerRefreshButtonContent() {
+        refreshButton.apply {
+            if (width == 0) return
+            val contentWidth = paint.measureText(text.toString()) + refreshIcon.bounds.width() + compoundDrawablePadding
+            // TextView anchors its start drawable to the padding, so center the whole group.
+            val horizontalPadding = ((width - contentWidth) / 2).toInt().coerceAtLeast(dp(16))
+            if (paddingStart != horizontalPadding || paddingEnd != horizontalPadding) {
+                setPaddingRelative(horizontalPadding, paddingTop, horizontalPadding, paddingBottom)
+            }
+        }
+    }
     private fun resetTime(seconds: Long) = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
         .withZone(ZoneId.systemDefault()).format(Instant.ofEpochSecond(seconds))
     private fun text(value: CharSequence, size: Int, color: Int = R.color.app_text, bold: Boolean = false, parent: LinearLayout = content): TextView {
