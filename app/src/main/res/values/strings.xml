@@ -6,6 +6,12 @@
     <string name="reset_credit_channel">新增重置点提醒</string>
     <string name="reset_credit_title">新的重置点到账！</string>
     <string name="reset_credit_message">新增 %1$d 个重置点，当前可用 %2$d 个</string>
+    <string name="reset_expiry_channel">重置点到期提醒</string>
+    <string name="reset_expiry_warning_title">重置点将在72小时内到期</string>
+    <string name="reset_expiry_critical_title">重置点将在24小时内到期</string>
+    <string name="reset_expiry_warning_count">24至72小时内到期：%1$d 个</string>
+    <string name="reset_expiry_critical_count">24小时内到期：%1$d 个</string>
+    <string name="reset_expiry_soonest">最近到期：%1$s</string>
     <string name="notification_settings">通知设置</string>
     <string name="widget_title" translatable="false">CODEX</string>
     <string name="widget_period_5h" translatable="false">5h</string>

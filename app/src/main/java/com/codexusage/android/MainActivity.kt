@@ -11,6 +11,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -60,6 +62,13 @@ class MainActivity : Activity() {
     private var selectingFile = false
     private var confirmingReset = false
     private var resetsExpanded = false
+    private val expiryHandler = Handler(Looper.getMainLooper())
+    private val expiryTick = object : Runnable {
+        override fun run() {
+            renderResetCredits()
+            expiryHandler.postDelayed(this, 60000L - System.currentTimeMillis() % 60000L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -213,7 +222,14 @@ class MainActivity : Activity() {
         if (::quota.isInitialized) {
             render()
             refreshXposedStatus()
+            expiryHandler.removeCallbacks(expiryTick)
+            expiryHandler.postDelayed(expiryTick, 60000L - System.currentTimeMillis() % 60000L)
         }
+    }
+
+    override fun onPause() {
+        expiryHandler.removeCallbacks(expiryTick)
+        super.onPause()
     }
 
     override fun onStop() {
@@ -274,8 +290,15 @@ class MainActivity : Activity() {
             if (repository.updatedAt > 0) "上次成功更新 ${localTime(repository.updatedAt / 1000)}" else "尚无成功查询",
             repository.error?.let { if (usage != null) "当前显示旧数据\n$it" else it }
         ).joinToString("\n")
+        renderResetCredits()
+    }
+
+    private fun renderResetCredits() {
+        val repository = UsageRepository(this)
+        val now = System.currentTimeMillis() / 1000
         val resets = repository.resetCredits()
         val rows = resets?.credits
+        resetSummary.setTextColor(resetExpiryColor(this, resets.expiryLevel(now), getColor(R.color.app_accent)))
         resetSummary.text = buildString {
             append("重置点 ${repository.credits?.toString() ?: "—"} 个")
             if ((repository.credits ?: 0) > 0) {
@@ -298,7 +321,7 @@ class MainActivity : Activity() {
             else -> rows.forEachIndexed { index, credit ->
                 val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
                 resetDetails.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14) })
-                val description = buildString {
+                val description = SpannableStringBuilder().apply {
                     val state = when (credit.status) {
                         "available" -> "可用"
                         "redeemed", "consumed" -> "已使用"
@@ -312,7 +335,12 @@ class MainActivity : Activity() {
                     }
                     append("${index + 1}. ${credit.title ?: "重置点"}\n状态：$state\n类型：$type")
                     append("\n发放：${credit.grantedAt?.let(::resetTime) ?: "未提供"}")
+                    val expiryStart = length + 1
                     append("\n到期：${credit.expiresAt?.let(::resetTime) ?: "未提供"}")
+                    val level = if ((repository.credits ?: 0) > 0) credit.expiryLevel(now) else ResetExpiryLevel.NORMAL
+                    if (level != ResetExpiryLevel.NORMAL) setSpan(
+                        ForegroundColorSpan(resetExpiryColor(this@MainActivity, level, getColor(R.color.app_text))),
+                        expiryStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     credit.description?.let { append("\n说明：$it") }
                     credit.id?.let { append("\n编号：$it") }
                 }
@@ -483,7 +511,7 @@ class MainActivity : Activity() {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private fun resetTime(seconds: Long) = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
         .withZone(ZoneId.systemDefault()).format(Instant.ofEpochSecond(seconds))
-    private fun text(value: String, size: Int, color: Int = R.color.app_text, bold: Boolean = false, parent: LinearLayout = content): TextView {
+    private fun text(value: CharSequence, size: Int, color: Int = R.color.app_text, bold: Boolean = false, parent: LinearLayout = content): TextView {
         return TextView(this).apply {
             text = value; textSize = size.toFloat(); setTextColor(getColor(color))
             if (bold) setTypeface(typeface, Typeface.BOLD)

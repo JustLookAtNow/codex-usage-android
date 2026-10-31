@@ -83,6 +83,8 @@ open class UsageWidget : AppWidgetProvider() {
             val repository = UsageRepository(context)
             val configured = CredentialStore(context).mode != null
             val usage = repository.usage().takeIf { configured }
+            val resetCredits = repository.resetCredits().takeIf { configured }
+            val resetCount = repository.credits.takeIf { configured }
             val windows = widgetWindows(usage)
             val refreshing = configured && WidgetRefreshState.active(context)
             val now = System.currentTimeMillis() / 1000
@@ -110,7 +112,7 @@ open class UsageWidget : AppWidgetProvider() {
                     fun viewsFor(dimensions: SizeF): RemoteViews = createViews(context,
                         widgetSize(dimensions.width.toInt(), dimensions.height.toInt()), windows, rings,
                         now, status, detail, configured, refreshing, repository.updatedAt, style,
-                        failed = configured && repository.error != null)
+                        failed = configured && repository.error != null, resetCredits = resetCredits, resetCount = resetCount)
                     val exactSizes = BundleCompat.getParcelableArrayList(options,
                         AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
                     val views = if (!exactSizes.isNullOrEmpty()) {
@@ -127,13 +129,15 @@ open class UsageWidget : AppWidgetProvider() {
             }
             WidgetCountdown.schedule(context, idsByStyle.values.any { it.isNotEmpty() } && configured &&
                 (refreshing || windows.any { (it?.resetAt ?: 0) > now } ||
+                    ((resetCount ?: 0) > 0 && resetCredits?.credits.orEmpty().any { it.status == "available" && (it.expiresAt ?: 0) > now }) ||
                     (usage != null && repository.updatedAt > 0 && now - repository.updatedAt / 1000 < 3600)))
         }
 
         internal fun createViews(
             context: Context, size: WidgetSize, windows: List<UsageWindow?>, rings: List<Bitmap>,
             now: Long, status: String, detail: String, configured: Boolean, refreshing: Boolean = false,
-            updatedAt: Long = 0, style: WidgetStyle = WidgetStyle.STANDARD, failed: Boolean = false
+            updatedAt: Long = 0, style: WidgetStyle = WidgetStyle.STANDARD, failed: Boolean = false,
+            resetCredits: ResetCredits? = null, resetCount: Int? = resetCredits?.availableCount
         ): RemoteViews {
             val singleWeekly = weeklyOnly(windows)
             val layout = if (singleWeekly) when (size) {
@@ -159,6 +163,23 @@ open class UsageWidget : AppWidgetProvider() {
             views.setContentDescription(R.id.widget_refresh, context.getString(
                 if (failed) R.string.widget_refresh_failed_description else R.string.widget_refresh_description))
             val description = mutableListOf("CODEX")
+            if (size != WidgetSize.COMPACT) {
+                val count = resetCount.takeIf { configured }
+                val level = if (configured && (count ?: 0) > 0) resetCredits.expiryLevel(now) else ResetExpiryLevel.NORMAL
+                val label = resetCountLabel(count)
+                val normalColor = context.getColor(if (style == WidgetStyle.GLASS) R.color.widget_glass_muted else R.color.widget_muted)
+                views.setTextViewText(R.id.widget_reset_count, label)
+                views.setTextColor(R.id.widget_reset_count,
+                    resetExpiryColor(context, level, normalColor, style == WidgetStyle.GLASS))
+                val expiryDescription = when (level) {
+                    ResetExpiryLevel.CRITICAL -> "，有重置点将在24小时内到期"
+                    ResetExpiryLevel.WARNING -> "，有重置点将在72小时内到期"
+                    ResetExpiryLevel.NORMAL -> ""
+                }
+                val resetDescription = "可用重置点 ${count?.toString() ?: "未知"}$expiryDescription"
+                views.setContentDescription(R.id.widget_reset_count, resetDescription)
+                description += resetDescription
+            }
             val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
             for (index in 0..1) {
                 if (singleWeekly && index == 0) continue

@@ -26,7 +26,11 @@ class UsageRepository(
     private val notifyWeeklyReset: () -> Unit = { WeeklyResetNotifications(context).notifyReset() },
     private val notifyNewResetCredits: (Int, Int) -> Unit = { added, available ->
         ResetCreditNotifications(context).notifyAdded(added, available)
-    }
+    },
+    private val notifyExpiringResetCredits: (List<ResetCredit>, Long) -> Unit = { credits, now ->
+        ResetCreditExpiryNotifications(context).notifyExpiring(credits, now)
+    },
+    private val nowMillis: () -> Long = System::currentTimeMillis
 ) {
     private val prefs = context.getSharedPreferences("usage", Context.MODE_PRIVATE)
     val body: String? get() = prefs.getString("body", null)
@@ -79,13 +83,29 @@ class UsageRepository(
         val value = ResetCreditsParser.parse(request("rate-limit-reset-credits", credentials))
         val previous = if (prefs.contains("credits_notification_baseline"))
             prefs.getInt("credits_notification_baseline", 0) else credits
+        val now = nowMillis()
+        val stages = JSONObject(prefs.getString("credits_expiry_stages", "{}")!!)
+        val expiring = if (value.availableCount <= 0) emptyList() else value.credits.orEmpty().filter { credit ->
+            val level = credit.expiryLevel(now / 1000)
+            val key = credit.expiryNotificationKey()
+            if (level.ordinal > stages.optInt(key, 0)) {
+                // CRITICAL also covers WARNING, including first discovery inside 24 hours.
+                stages.put(key, level.ordinal)
+                true
+            } else false
+        }
         prefs.edit().putInt("credits", value.availableCount)
             .putInt("credits_notification_baseline", value.availableCount)
             .putString("credits_body", ResetCreditsParser.displayJson(value))
-            .putLong("credits_updated_at", System.currentTimeMillis()).remove("credits_error").save()
+            .putString("credits_expiry_stages", stages.toString())
+            .putLong("credits_updated_at", now).remove("credits_error").save()
         if (previous != null && value.availableCount > previous) {
             // Advance the baseline even if delivery is disabled or fails; never replay alerts.
             try { notifyNewResetCredits(value.availableCount - previous, value.availableCount) }
+            catch (_: Exception) { }
+        }
+        if (expiring.isNotEmpty()) {
+            try { notifyExpiringResetCredits(expiring, now / 1000) }
             catch (_: Exception) { }
         }
         return value

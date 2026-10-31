@@ -40,6 +40,7 @@
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
+    <TextView android:id="@+id/widget_reset_count" android:layout_width="wrap_content" android:layout_height="12dp" android:layout_gravity="bottom|end" android:layout_marginBottom="2dp" android:layout_marginEnd="14dp" android:gravity="center" android:textSize="9sp" android:textColor="@color/widget_muted" android:includeFontPadding="false" android:maxLines="1" android:fontFamily="sans-serif" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="6sp" android:autoSizeMaxTextSize="9sp" android:autoSizeStepGranularity="1sp" />
     <ImageView android:id="@+id/widget_loading_overlay" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:visibility="gone" android:importantForAccessibility="no" />
     <FrameLayout android:id="@+id/widget_refresh" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="top|end" android:contentDescription="@string/widget_refresh_description" android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="17dp" android:paddingBottom="11dp">
         <ImageView android:id="@+id/widget_refresh_icon" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/ic_widget_refresh" android:importantForAccessibility="no" />
