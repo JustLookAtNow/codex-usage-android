@@ -179,7 +179,7 @@ class GlassWidgetTest {
         }
     }
 
-    @Test fun lightGlassQuotaNumbersAndProgressUseMatchingColors() {
+    @Test fun lightGlassQuotaNumbersAndSoftProgressKeepQuotaSeverity() {
         val themed = themed(false)
         for (size in WidgetSize.entries) for (singleWeekly in listOf(false, true)) {
             for ((value, colorId) in listOf(
@@ -198,18 +198,17 @@ class GlassWidgetTest {
                     if (size != WidgetSize.COMPACT) {
                         val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
                         val bitmap = (view.findViewById<ImageView>(progressId).drawable as BitmapDrawable).bitmap
-                        assertTrue((0 until bitmap.height).any { bitmap.getPixel(10, it) == color })
+                        val y = (0 until bitmap.height).maxBy { Color.alpha(bitmap.getPixel(40, it)) }
+                        val fill = bitmap.getPixel(40, y)
+                        val expectedHsl = FloatArray(3).also { ColorUtils.colorToHSL(color, it) }
+                        val actualHsl = FloatArray(3).also { ColorUtils.colorToHSL(fill, it) }
+                        assertTrue("Softer fills must retain their green/amber/red meaning",
+                            kotlin.math.abs(expectedHsl[0] - actualHsl[0]) < 20f && actualHsl[1] > 0.05f)
+                        assertTrue("The new progress fill should be lighter than the text",
+                            ColorUtils.calculateLuminance(fill) > ColorUtils.calculateLuminance(color))
                         assertTrue((0 until bitmap.height).any { bitmap.getPixel(980, it) == themed.getColor(R.color.widget_glass_track) })
-                        val headX = (value * 10).toInt() - 2
-                        assertTrue(
-                            "White progress head must contrast with track by at least 3:1: $size singleWeekly=$singleWeekly value=$value index=$index",
-                            (0 until bitmap.height).any {
-                                ColorUtils.calculateContrast(
-                                    bitmap.getPixel(headX, it),
-                                    themed.getColor(R.color.widget_glass_track)
-                                ) >= 3.0
-                            }
-                        )
+                        assertEquals("The endpoint must use the same material as the body",
+                            fill, bitmap.getPixel((value * 10).toInt() - 16, y))
                     }
                 }
             }
@@ -271,22 +270,22 @@ class GlassWidgetTest {
         }
     }
 
-    @Test fun glassProgressHasGlowAndHighlightOnlyForKnownPositiveQuota() {
+    @Test fun glassProgressUsesUniformMintWithoutAWhiteEndpoint() {
         val themed = themed(false)
         val color = themed.getColor(R.color.widget_glass_primary)
         val progress = UsageWidget.quotaProgress(themed, 50.0, color, WidgetStyle.GLASS, WidgetSize.WIDE)
-        assertTrue("The satin highlight should have a restrained haze beside the bar",
-            Color.alpha(progress.getPixel(468, 7)) in 1..24)
-        assertEquals("The haze should fade before reaching the outer margin", 0,
+        assertEquals("No endpoint flare should extend beside the bar", 0,
+            Color.alpha(progress.getPixel(468, 7)))
+        assertEquals("The outer margin should stay transparent", 0,
             Color.alpha(progress.getPixel(468, 1)))
         val centerY = ((3f + 2f) * progress.height / 12f).toInt()
-        assertEquals("Most of the fill should retain its quota color", color,
-            progress.getPixel(350, centerY))
+        val fill = progress.getPixel(350, centerY)
+        assertTrue("The particle gradient should retain its green quota color",
+            Color.green(fill) > Color.red(fill) && Color.green(fill) > Color.blue(fill))
         val tip = progress.getPixel(498, centerY)
-        assertTrue("The progress tip should be nearly white",
-            Color.red(tip) >= 230 && Color.green(tip) >= 230 && Color.blue(tip) >= 230)
-        val fade = listOf(350, 410, 470).map { ColorUtils.calculateLuminance(progress.getPixel(it, centerY)) }
-        assertTrue("The highlight should brighten gradually over a longer segment", fade[0] < fade[1] && fade[1] < fade[2])
+        assertEquals("The tip should have the same soft mint surface as the body", fill, tip)
+        assertTrue("The mint fill should be lighter than the old green",
+            ColorUtils.calculateLuminance(fill) > ColorUtils.calculateLuminance(color))
         for (value in listOf(9.0, 50.0, 86.0)) {
             val bitmap = UsageWidget.quotaProgress(themed, value, color, WidgetStyle.GLASS, WidgetSize.WIDE)
             val end = (value * 10).toInt()
@@ -299,16 +298,22 @@ class GlassWidgetTest {
             val empty = UsageWidget.quotaProgress(themed, value, color, WidgetStyle.GLASS, WidgetSize.WIDE)
             assertEquals(0, Color.alpha(empty.getPixel(500, 0)))
         }
+    }
+
+    @Test fun glassRingIsThickerAndHasNoWhiteEndpoint() {
         val dark = themed(true)
         val ring = UsageWidget.quotaRing(dark, 50.0, false, WidgetStyle.GLASS)
-        assertTrue("The dark ring endpoint should have a soft glow", Color.alpha(ring.getPixel(150, 218)) > 0)
+        assertTrue("The ring stroke should extend beyond its old width", Color.alpha(ring.getPixel(128, 2)) > 0)
+        val wideRing = UsageWidget.quotaRing(dark, 50.0, false, WidgetStyle.GLASS, WidgetSize.WIDE)
+        assertEquals("The 4x2 ring leaves room around its label", 0, Color.alpha(ring.getPixel(128, 34)))
+        assertTrue("The 4x1 ring must be thicker than the 4x2 ring", Color.alpha(wideRing.getPixel(128, 34)) > 0)
         val ringTip = ring.getPixel(130, 240)
-        assertTrue("The dark ring tip should be nearly white",
-            Color.red(ringTip) >= 230 && Color.green(ringTip) >= 230 && Color.blue(ringTip) >= 230)
+        assertTrue("The ring tip should retain the green material instead of a white flare",
+            Color.green(ringTip) > Color.red(ringTip) && Color.green(ringTip) > Color.blue(ringTip) && Color.red(ringTip) < 160)
         val lowRing = UsageWidget.quotaRing(dark, 9.0, false, WidgetStyle.GLASS)
         val ringStart = lowRing.getPixel(125, 14)
         assertTrue("The dark ring should retain its quota color at the start",
-            Color.alpha(ringStart) >= 240 && Color.green(ringStart) < 200 && Color.blue(ringStart) < 200)
+            Color.alpha(ringStart) >= 240 && Color.red(ringStart) > Color.green(ringStart) && Color.red(ringStart) > Color.blue(ringStart))
     }
 
     @Test fun glassProgressGlowKeepsBarAndCountdownPositions() {
@@ -340,7 +345,7 @@ class GlassWidgetTest {
                 else listOf(240 to 140, 320 to 160)) {
                 val standard = render(WidgetStyle.STANDARD, width, height)
                 val glass = render(WidgetStyle.GLASS, width, height)
-                val id = if (singleWeekly) R.id.widget_weekly_progress else R.id.widget_primary_progress
+                val id = if (singleWeekly) R.id.widget_weekly_progress_container else R.id.widget_primary_progress_container
                 val standardBar = standard.findViewById<View>(id)
                 val glassBar = glass.findViewById<View>(id)
                 val standardParams = standardBar.layoutParams as ViewGroup.MarginLayoutParams
@@ -364,7 +369,8 @@ class GlassWidgetTest {
             R.color.widget_glass_primary,
             R.color.widget_glass_weekly,
             R.color.widget_glass_warning,
-            R.color.widget_glass_critical
+            R.color.widget_glass_critical,
+            R.color.widget_quota_full
         )
         val backgrounds = listOf(
             R.color.widget_glass_background_top,

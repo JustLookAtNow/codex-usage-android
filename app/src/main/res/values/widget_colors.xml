@@ -7,6 +7,11 @@
     <color name="widget_refresh_warning">#B86A00</color>
     <color name="widget_primary">#088C76</color>
     <color name="widget_weekly">#088C76</color>
+    <color name="widget_progress_green">#2BAE83</color>
+    <color name="widget_progress_gold">#DCAE38</color>
+    <color name="widget_particle_amber">#753300</color>
+    <color name="widget_particle_ruby">#991839</color>
+    <color name="widget_quota_full">#795300</color>
     <color name="widget_track">#CEEAE2</color>
     <color name="widget_divider">#D8EAE4</color>
     <color name="widget_watermark">#0F088C76</color>

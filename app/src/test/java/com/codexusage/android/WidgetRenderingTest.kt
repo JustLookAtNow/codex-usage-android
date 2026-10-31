@@ -22,6 +22,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.RemoteViews
+import androidx.core.graphics.ColorUtils
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.workDataOf
 import org.junit.Assert.*
@@ -44,6 +45,15 @@ class WidgetRenderingTest {
         UsageWindow("5h", 51.0, now + 10500, 18000, false),
         UsageWindow("Weekly", 90.0, now + 6 * 86400 + 8 * 3600, 604800, false)
     )
+
+    private fun assertQuotaHue(expected: Int, actual: Int) {
+        val expectedHsl = FloatArray(3).also { ColorUtils.colorToHSL(expected, it) }
+        val actualHsl = FloatArray(3).also { ColorUtils.colorToHSL(actual, it) }
+        val hueDifference = kotlin.math.abs(expectedHsl[0] - actualHsl[0])
+        assertTrue("Particle highlights must preserve the quota's green/amber/red hue",
+            minOf(hueDifference, 360f - hueDifference) < 5f && actualHsl[1] > 0.05f)
+        assertEquals(255, Color.alpha(actual))
+    }
 
     @Before fun reset() {
         context = RuntimeEnvironment.getApplication()
@@ -84,7 +94,7 @@ class WidgetRenderingTest {
                     val progress = view.findViewById<ImageView>(R.id.widget_primary_progress)
                     val ring = view.findViewById<ImageView>(R.id.widget_primary_ring)
                     val pixels = (progress.drawable as BitmapDrawable).bitmap
-                    assertEquals(themed.getColor(R.color.widget_primary), pixels.getPixel(509, 10))
+                    assertQuotaHue(themed.getColor(R.color.widget_progress_green), pixels.getPixel(509, 10))
                     assertEquals(themed.getColor(R.color.widget_track), pixels.getPixel(510, 10))
                     assertEquals(if (night) View.GONE else View.VISIBLE, progress.visibility)
                     assertEquals(if (night) View.VISIBLE else View.GONE, ring.visibility)
@@ -122,19 +132,20 @@ class WidgetRenderingTest {
                 for (side in listOf(20, 32, 64, 128, 256)) {
                     val scaled = Bitmap.createScaledBitmap(source, side, side, true)
                     val center = side / 2.0
-                    val innerRadius = side * (104.0 / 256)
+                    val innerRadius = side * (101.0 / 256)
                     var textPixels = 0
                     for (y in 0 until side) for (x in 0 until side) {
                         val pixel = scaled.getPixel(x, y)
-                        val textColor = quotaColor(context, value, context.getColor(R.color.widget_text))
+                        val textColor = if (value == 100.0) context.getColor(R.color.widget_quota_full)
+                            else quotaColor(context, value, context.getColor(R.color.widget_text))
                         // Warning text and its arc share a color; sample the central label
                         // box for those values while retaining the full white-pixel check.
-                        val warning = value != null && value <= 40
+                        val colored = value != null && (value <= 40 || value == 100.0)
                         val inLabel = x >= side * 0.22 && x < side * 0.78 && y >= side * 0.31 && y < side * 0.69
                         val matches = kotlin.math.abs(Color.red(pixel) - Color.red(textColor)) < 25 &&
                             kotlin.math.abs(Color.green(pixel) - Color.green(textColor)) < 25 &&
                             kotlin.math.abs(Color.blue(pixel) - Color.blue(textColor)) < 25
-                        if (Color.alpha(pixel) >= 128 && matches && (!warning || inLabel)) {
+                        if (Color.alpha(pixel) >= 128 && matches && (!colored || inLabel)) {
                             textPixels++
                             val dx = x + 0.5 - center
                             val dy = y + 0.5 - center
@@ -201,7 +212,8 @@ class WidgetRenderingTest {
                             val value = values[index].remaining
                             val normal = themed.getColor(if (size == WidgetSize.COMPACT) R.color.widget_text
                                 else if (index == 0) R.color.widget_primary else R.color.widget_weekly)
-                            val color = quotaColor(themed, value, normal)
+                            val color = if (value == 100.0) themed.getColor(R.color.widget_quota_full)
+                                else quotaColor(themed, value, normal)
                             val text = view!!.findViewById<TextView>(if (index == 0) R.id.widget_primary_value else R.id.widget_weekly_value)
                             assertEquals(color, text.currentTextColor)
                             assertEquals(percentage(value), text.text.toString())
@@ -213,13 +225,24 @@ class WidgetRenderingTest {
                                 val progress = view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress)
                                 val pixels = (progress.drawable as BitmapDrawable).bitmap
                                 val track = themed.getColor(R.color.widget_track)
-                                assertEquals(if ((value ?: 0.0) >= 10.1) color else track, pixels.getPixel(100, 10))
-                                assertEquals(if (value == 100.0) color else track, pixels.getPixel(980, 10))
+                                val fillColor = when {
+                                    value == 100.0 -> themed.getColor(R.color.widget_progress_gold)
+                                    (value ?: 0.0) > 40.0 -> themed.getColor(R.color.widget_progress_green)
+                                    else -> color
+                                }
+                                if ((value ?: 0.0) >= 10.1) assertQuotaHue(fillColor, pixels.getPixel(100, 10))
+                                else assertEquals(track, pixels.getPixel(100, 10))
+                                if (value == 100.0) assertQuotaHue(fillColor, pixels.getPixel(980, 10))
+                                else assertEquals(track, pixels.getPixel(980, 10))
                                 val ring = view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring)
                                 val ringPixels = (ring.drawable as BitmapDrawable).bitmap
-                                val labelColor = quotaColor(themed, value, themed.getColor(R.color.widget_text))
+                                val labelColor = if (value == 100.0) themed.getColor(R.color.widget_quota_full)
+                                    else quotaColor(themed, value, themed.getColor(R.color.widget_text))
                                 assertTrue("Ring label must use the current color", hasColor(ringPixels, labelColor, 56, 78, 200, 178))
-                                if (!refreshing) assertEquals(if ((value ?: 0.0) > 0) color else track, ringPixels.getPixel(128, 14))
+                                if (!refreshing) {
+                                    if ((value ?: 0.0) > 0) assertQuotaHue(fillColor, ringPixels.getPixel(128, 14))
+                                    else assertEquals(track, ringPixels.getPixel(128, 14))
+                                }
                             }
                         }
                         if (primary == 15.0 && weekly == 40.0) {

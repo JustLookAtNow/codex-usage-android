@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ProgressBar xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_progress_particles"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:padding="0dp" android:minWidth="0dp" android:minHeight="0dp"
+    android:background="@null"
+    android:indeterminate="true" android:indeterminateOnly="false"
+    android:indeterminateDrawable="@drawable/widget_particles_animated"
+    android:indeterminateTint="@null"
+    android:importantForAccessibility="no" android:focusable="false" android:clickable="false" />

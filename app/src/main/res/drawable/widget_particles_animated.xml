@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="140dp" android:height="7dp"
+            android:viewportWidth="1000" android:viewportHeight="100">
+            <!-- Keep flecks inside the opaque center of the bitmap mask, including
+                 when a launcher downsamples a four-dp bar and its rounded ends. -->
+            <clip-path android:pathData="M24,24 H976 V76 H24 Z" />
+            <group android:name="far_drift">
+                <path android:name="far_flecks" android:fillColor="#FFFFFF" android:fillAlpha="0.32"
+                    android:pathData="M-452,28 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M-369,69 a3,6 0,1 0,6 0 a3,6 0,1 0,-6 0 M-278,41 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M-202,76 a3,6 0,1 0,6 0 a3,6 0,1 0,-6 0 M-115,24 a3,6 0,1 0,6 0 a3,6 0,1 0,-6 0 M-37,58 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M48,28 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M131,69 a3,6 0,1 0,6 0 a3,6 0,1 0,-6 0 M222,41 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M298,76 a3,6 0,1 0,6 0 a3,6 0,1 0,-6 0 M385,24 a3,6 0,1 0,6 0 a3,6 0,1 0,-6 0 M463,58 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M548,28 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M631,69 a3,6 0,1 0,6 0 a3,6 0,1 0,-6 0 M722,41 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M798,76 a3,6 0,1 0,6 0 a3,6 0,1 0,-6 0 M885,24 a3,6 0,1 0,6 0 a3,6 0,1 0,-6 0 M963,58 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0" />
+            </group>
+            <group android:name="near_drift">
+                <path android:name="near_flecks" android:fillColor="#F0FFF7" android:fillAlpha="0.7"
+                    android:pathData="M-415,54 a5,9 0,1 0,10 0 a5,9 0,1 0,-10 0 M-238,26 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M-80,72 a4,8 0,1 0,8 0 a4,8 0,1 0,-8 0 M85,54 a5,9 0,1 0,10 0 a5,9 0,1 0,-10 0 M262,26 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M420,72 a4,8 0,1 0,8 0 a4,8 0,1 0,-8 0 M585,54 a5,9 0,1 0,10 0 a5,9 0,1 0,-10 0 M762,26 a4,7 0,1 0,8 0 a4,7 0,1 0,-8 0 M920,72 a4,8 0,1 0,8 0 a4,8 0,1 0,-8 0" />
+            </group>
+        </vector>
+    </aapt:attr>
+    <target android:name="far_drift">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="translateX" android:valueFrom="0" android:valueTo="500"
+                android:valueType="floatType" android:duration="24000" android:repeatCount="infinite"
+                android:interpolator="@android:anim/linear_interpolator" />
+        </aapt:attr>
+    </target>
+    <target android:name="near_drift">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="translateX" android:valueFrom="0" android:valueTo="500"
+                android:valueType="floatType" android:duration="14000" android:repeatCount="infinite"
+                android:interpolator="@android:anim/linear_interpolator" />
+        </aapt:attr>
+    </target>
+    <target android:name="far_flecks">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0.25" android:valueTo="0.52"
+                android:valueType="floatType" android:duration="2800" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+        </aapt:attr>
+    </target>
+    <target android:name="near_flecks">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0.75" android:valueTo="0.28"
+                android:valueType="floatType" android:duration="1900" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+        </aapt:attr>
+    </target>
+</animated-vector>

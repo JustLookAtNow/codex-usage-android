@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="128dp" android:height="128dp"
+            android:viewportWidth="256" android:viewportHeight="256">
+            <!-- Inset the animated field from both stroke edges so downsampling
+                 cannot expose a halo through the mask's antialiased boundary. -->
+            <clip-path android:fillType="evenOdd"
+                android:pathData="M247,128 A119,119 0,1 0,9 128 A119,119 0,1 0,247 128 Z M237,128 A109,109 0,1 0,19 128 A109,109 0,1 0,237 128 Z" />
+            <!-- A pulsing fleck at the start remains inside even a tiny positive
+                 quota, while the two orbiting fields continue moving around it. -->
+            <path android:name="anchor_halo" android:fillColor="#FFFFFF" android:fillAlpha=".12"
+                android:pathData="M121.5,14 a6.5,6.5 0,1 0,13 0 a6.5,6.5 0,1 0,-13 0" />
+            <path android:name="anchor_fleck" android:fillColor="#FFFFFF" android:fillAlpha=".45"
+                android:pathData="M124,14 a4,4 0,1 0,8 0 a4,4 0,1 0,-8 0" />
+            <!-- Larger cores and layered halos survive the launcher shrinking a 4x1 ring. -->
+            <group android:name="far_orbit" android:pivotX="128" android:pivotY="128">
+                <path android:name="far_outer_halo" android:fillColor="#FFFFFF" android:fillAlpha=".09"
+                    android:pathData="M136.85,16.83 a4.80,4.80 0,1 0,9.60 0 a4.80,4.80 0,1 0,-9.60 0 M191.51,36.96 a5.10,5.10 0,1 0,10.20 0 a5.10,5.10 0,1 0,-10.20 0 M229.98,82.68 a4.80,4.80 0,1 0,9.60 0 a4.80,4.80 0,1 0,-9.60 0 M234.07,141.65 a5.10,5.10 0,1 0,10.20 0 a5.10,5.10 0,1 0,-10.20 0 M214.24,196.61 a4.80,4.80 0,1 0,9.60 0 a4.80,4.80 0,1 0,-9.60 0 M168.22,234.78 a5.10,5.10 0,1 0,10.20 0 a5.10,5.10 0,1 0,-10.20 0 M109.55,239.17 a4.80,4.80 0,1 0,9.60 0 a4.80,4.80 0,1 0,-9.60 0 M54.29,219.04 a5.10,5.10 0,1 0,10.20 0 a5.10,5.10 0,1 0,-10.20 0 M16.42,173.32 a4.80,4.80 0,1 0,9.60 0 a4.80,4.80 0,1 0,-9.60 0 M11.73,114.35 a5.10,5.10 0,1 0,10.20 0 a5.10,5.10 0,1 0,-10.20 0 M32.16,59.39 a4.80,4.80 0,1 0,9.60 0 a4.80,4.80 0,1 0,-9.60 0 M77.58,21.22 a5.10,5.10 0,1 0,10.20 0 a5.10,5.10 0,1 0,-10.20 0" />
+                <path android:name="far_inner_halo" android:fillColor="#FFFFFF" android:fillAlpha=".18"
+                    android:pathData="M138.15,16.83 a3.50,3.50 0,1 0,7.00 0 a3.50,3.50 0,1 0,-7.00 0 M192.81,36.96 a3.80,3.80 0,1 0,7.60 0 a3.80,3.80 0,1 0,-7.60 0 M231.28,82.68 a3.50,3.50 0,1 0,7.00 0 a3.50,3.50 0,1 0,-7.00 0 M235.37,141.65 a3.80,3.80 0,1 0,7.60 0 a3.80,3.80 0,1 0,-7.60 0 M215.54,196.61 a3.50,3.50 0,1 0,7.00 0 a3.50,3.50 0,1 0,-7.00 0 M169.52,234.78 a3.80,3.80 0,1 0,7.60 0 a3.80,3.80 0,1 0,-7.60 0 M110.85,239.17 a3.50,3.50 0,1 0,7.00 0 a3.50,3.50 0,1 0,-7.00 0 M55.59,219.04 a3.80,3.80 0,1 0,7.60 0 a3.80,3.80 0,1 0,-7.60 0 M17.72,173.32 a3.50,3.50 0,1 0,7.00 0 a3.50,3.50 0,1 0,-7.00 0 M13.03,114.35 a3.80,3.80 0,1 0,7.60 0 a3.80,3.80 0,1 0,-7.60 0 M33.46,59.39 a3.50,3.50 0,1 0,7.00 0 a3.50,3.50 0,1 0,-7.00 0 M78.88,21.22 a3.80,3.80 0,1 0,7.60 0 a3.80,3.80 0,1 0,-7.60 0" />
+                <path android:name="far_flecks" android:fillColor="#FFFFFF" android:fillAlpha=".7"
+                    android:pathData="M139.15,16.83 a2.50,2.50 0,1 0,5.00 0 a2.50,2.50 0,1 0,-5.00 0 M193.81,36.96 a2.80,2.80 0,1 0,5.60 0 a2.80,2.80 0,1 0,-5.60 0 M232.28,82.68 a2.50,2.50 0,1 0,5.00 0 a2.50,2.50 0,1 0,-5.00 0 M236.37,141.65 a2.80,2.80 0,1 0,5.60 0 a2.80,2.80 0,1 0,-5.60 0 M216.54,196.61 a2.50,2.50 0,1 0,5.00 0 a2.50,2.50 0,1 0,-5.00 0 M170.52,234.78 a2.80,2.80 0,1 0,5.60 0 a2.80,2.80 0,1 0,-5.60 0 M111.85,239.17 a2.50,2.50 0,1 0,5.00 0 a2.50,2.50 0,1 0,-5.00 0 M56.59,219.04 a2.80,2.80 0,1 0,5.60 0 a2.80,2.80 0,1 0,-5.60 0 M18.72,173.32 a2.50,2.50 0,1 0,5.00 0 a2.50,2.50 0,1 0,-5.00 0 M14.03,114.35 a2.80,2.80 0,1 0,5.60 0 a2.80,2.80 0,1 0,-5.60 0 M34.46,59.39 a2.50,2.50 0,1 0,5.00 0 a2.50,2.50 0,1 0,-5.00 0 M79.88,21.22 a2.80,2.80 0,1 0,5.60 0 a2.80,2.80 0,1 0,-5.60 0" />
+            </group>
+            <group android:name="near_orbit" android:pivotX="128" android:pivotY="128">
+                <path android:name="near_outer_halo" android:fillColor="#FFFFFF" android:fillAlpha=".09"
+                    android:pathData="M185.74,36.25 a6.50,6.50 0,1 0,13.00 0 a6.50,6.50 0,1 0,-13.00 0 M233.47,108.20 a6.80,6.80 0,1 0,13.60 0 a6.80,6.80 0,1 0,-13.60 0 M216.52,194.53 a6.50,6.50 0,1 0,13.00 0 a6.50,6.50 0,1 0,-13.00 0 M140.65,238.30 a6.80,6.80 0,1 0,13.60 0 a6.80,6.80 0,1 0,-13.60 0 M56.11,221.38 a6.50,6.50 0,1 0,13.00 0 a6.50,6.50 0,1 0,-13.00 0 M6.96,148.14 a6.80,6.80 0,1 0,13.60 0 a6.80,6.80 0,1 0,-13.60 0 M29.75,63.76 a6.50,6.50 0,1 0,13.00 0 a6.50,6.50 0,1 0,-13.00 0 M101.40,15.73 a6.80,6.80 0,1 0,13.60 0 a6.80,6.80 0,1 0,-13.60 0" />
+                <path android:name="near_inner_halo" android:fillColor="#FFFFFF" android:fillAlpha=".18"
+                    android:pathData="M187.54,36.25 a4.70,4.70 0,1 0,9.40 0 a4.70,4.70 0,1 0,-9.40 0 M235.27,108.20 a5.00,5.00 0,1 0,10.00 0 a5.00,5.00 0,1 0,-10.00 0 M218.32,194.53 a4.70,4.70 0,1 0,9.40 0 a4.70,4.70 0,1 0,-9.40 0 M142.45,238.30 a5.00,5.00 0,1 0,10.00 0 a5.00,5.00 0,1 0,-10.00 0 M57.91,221.38 a4.70,4.70 0,1 0,9.40 0 a4.70,4.70 0,1 0,-9.40 0 M8.76,148.14 a5.00,5.00 0,1 0,10.00 0 a5.00,5.00 0,1 0,-10.00 0 M31.55,63.76 a4.70,4.70 0,1 0,9.40 0 a4.70,4.70 0,1 0,-9.40 0 M103.20,15.73 a5.00,5.00 0,1 0,10.00 0 a5.00,5.00 0,1 0,-10.00 0" />
+                <path android:name="near_flecks" android:fillColor="#FFFFFF" android:fillAlpha=".95"
+                    android:pathData="M188.54,36.25 a3.70,3.70 0,1 0,7.40 0 a3.70,3.70 0,1 0,-7.40 0 M236.27,108.20 a4.00,4.00 0,1 0,8.00 0 a4.00,4.00 0,1 0,-8.00 0 M219.32,194.53 a3.70,3.70 0,1 0,7.40 0 a3.70,3.70 0,1 0,-7.40 0 M143.45,238.30 a4.00,4.00 0,1 0,8.00 0 a4.00,4.00 0,1 0,-8.00 0 M58.91,221.38 a3.70,3.70 0,1 0,7.40 0 a3.70,3.70 0,1 0,-7.40 0 M9.76,148.14 a4.00,4.00 0,1 0,8.00 0 a4.00,4.00 0,1 0,-8.00 0 M32.55,63.76 a3.70,3.70 0,1 0,7.40 0 a3.70,3.70 0,1 0,-7.40 0 M104.20,15.73 a4.00,4.00 0,1 0,8.00 0 a4.00,4.00 0,1 0,-8.00 0" />
+            </group>
+        </vector>
+    </aapt:attr>
+    <target android:name="anchor_fleck">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0.35" android:valueTo="0.98"
+                android:valueType="floatType" android:duration="850" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+        </aapt:attr>
+    </target>
+    <target android:name="far_orbit">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="rotation" android:valueFrom="0" android:valueTo="360"
+                android:valueType="floatType" android:duration="32000" android:repeatCount="infinite"
+                android:interpolator="@android:anim/linear_interpolator" />
+        </aapt:attr>
+    </target>
+    <target android:name="near_orbit">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="rotation" android:valueFrom="0" android:valueTo="360"
+                android:valueType="floatType" android:duration="18000" android:repeatCount="infinite"
+                android:interpolator="@android:anim/linear_interpolator" />
+        </aapt:attr>
+    </target>
+    <target android:name="far_flecks">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0.55" android:valueTo="0.9"
+                android:valueType="floatType" android:duration="1800" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+        </aapt:attr>
+    </target>
+    <target android:name="near_flecks">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0.98" android:valueTo="0.65"
+                android:valueType="floatType" android:duration="1200" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+        </aapt:attr>
+    </target>
+</animated-vector>
