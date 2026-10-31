@@ -68,7 +68,7 @@ open class UsageWidget : AppWidgetProvider() {
             )
             val repository = UsageRepository(context)
             val configured = CredentialStore(context).mode != null
-            val usage = repository.usage().takeIf { configured }
+            val usage = repository.displayUsage().takeIf { configured }
             val resetCredits = repository.resetCredits().takeIf { configured }
             val resetCount = repository.credits.takeIf { configured }
             val windows = widgetWindows(usage)

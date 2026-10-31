@@ -19,6 +19,7 @@ import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -33,6 +34,11 @@ import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
+    private lateinit var root: FrameLayout
+    private lateinit var scroll: ScrollView
+    private lateinit var resetEffect: ResetSuccessEffect
+    private var animatedQuota: Usage? = null
+    private var resumed = false
     private lateinit var content: LinearLayout
     private lateinit var quota: TextView
     private lateinit var resetSummary: TextView
@@ -54,7 +60,9 @@ class MainActivity : Activity() {
     private lateinit var xposedStatus: TextView
     private val actions = mutableListOf<Button>()
     private val resetActions = mutableListOf<Pair<Button, Boolean>>()
-    private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> runOnUiThread { render() } }
+    private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        runOnUiThread { if (!isDestroyed && !isFinishing) render() }
+    }
     private val xposedListener: () -> Unit = {
         runOnUiThread { if (!isDestroyed && !isFinishing) refreshXposedStatus() }
     }
@@ -80,13 +88,15 @@ class MainActivity : Activity() {
         }
         selectingFile = savedInstanceState?.getBoolean("selecting_file") ?: false
         resetsExpanded = savedInstanceState?.getBoolean("resets_expanded") ?: false
-        val scroll = ScrollView(this).apply { isFillViewport = true; setBackgroundColor(getColor(R.color.app_background)) }
+        scroll = ScrollView(this).apply { isFillViewport = true; setBackgroundColor(getColor(R.color.app_background)) }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(24), dp(24), dp(32))
         }
         scroll.addView(content)
-        setContentView(scroll)
+        root = FrameLayout(this).apply { addView(scroll, FrameLayout.LayoutParams(-1, -1)) }
+        resetEffect = ResetSuccessEffect(root)
+        setContentView(root)
         ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
@@ -221,15 +231,21 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        resumed = true
         if (::quota.isInitialized) {
             render()
             refreshXposedStatus()
             expiryHandler.removeCallbacks(expiryTick)
             expiryHandler.postDelayed(expiryTick, 60000L - System.currentTimeMillis() % 60000L)
+            if (!busy && UsageRepository(this).resetPending) RefreshWorker.now(this)
         }
     }
 
     override fun onPause() {
+        resumed = false
+        resetEffect.stop()
+        animatedQuota = null
+        renderQuota(UsageRepository(this).displayUsage())
         expiryHandler.removeCallbacks(expiryTick)
         super.onPause()
     }
@@ -243,6 +259,7 @@ class MainActivity : Activity() {
         getSharedPreferences("usage", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(listener)
         refreshPrefs.unregisterOnSharedPreferenceChangeListener(refreshListener)
         refreshIcon.stop()
+        resetEffect.stop()
         executor.shutdown()
         super.onDestroy()
     }
@@ -272,8 +289,22 @@ class MainActivity : Activity() {
 
     private fun render() {
         val repository = UsageRepository(this)
-        val usage = repository.usage()
+        val usage = repository.displayUsage()
+        if (usage == null) {
+            resetEffect.stop()
+            animatedQuota = null
+        }
         source.text = CredentialStore(this).description()
+        renderQuota(animatedQuota ?: usage)
+        status.text = listOfNotNull(
+            if (repository.updatedAt > 0) "上次成功更新 ${localTime(repository.updatedAt / 1000)}" else "尚无成功查询",
+            repository.error?.let { if (usage != null) "当前显示旧数据\n$it" else it }
+        ).joinToString("\n")
+        renderResetCredits()
+        showResetSuccess(repository)
+    }
+
+    private fun renderQuota(usage: Usage?) {
         quota.text = usage?.let { data ->
             SpannableStringBuilder().apply {
                 data.windows.forEachIndexed { index, window ->
@@ -288,11 +319,21 @@ class MainActivity : Activity() {
                 append("\n\n套餐 ${data.plan ?: "未提供"}")
             }
         } ?: "5h  —\n\nWeekly  —"
-        status.text = listOfNotNull(
-            if (repository.updatedAt > 0) "上次成功更新 ${localTime(repository.updatedAt / 1000)}" else "尚无成功查询",
-            repository.error?.let { if (usage != null) "当前显示旧数据\n$it" else it }
-        ).joinToString("\n")
-        renderResetCredits()
+    }
+
+    private fun showResetSuccess(repository: UsageRepository) {
+        if (!resumed || resetEffect.running) return
+        val event = repository.claimResetCelebration() ?: return
+        feedback.text = repository.resetMessage
+        UsageWidget.updateAll(this)
+        scroll.smoothScrollTo(0, 0)
+        resetEffect.start(event.before, repository.displayUsage(), frame = {
+            animatedQuota = it
+            renderQuota(it)
+        }, finished = {
+            animatedQuota = null
+            if (!isDestroyed && !isFinishing) render()
+        })
     }
 
     private fun renderResetCredits() {
@@ -316,7 +357,12 @@ class MainActivity : Activity() {
         resetDetails.removeAllViews()
         resetActions.clear()
         resets?.totalEarnedCount?.let { text("累计获得 $it 个", 13, parent = resetDetails) }
-        if (repository.resetPending) resetAction("重试本次重置", resetDetails, true) { confirmReset() }
+        if (repository.resetPending) {
+            if (repository.pendingResetCreditMissing) text("上次使用的重置点已不在最近的明细中，刷新后将自动核对并确认结果。",
+                14, parent = resetDetails)
+            resetAction("重试本次重置", resetDetails, true) { confirmReset() }
+            resetAction("确认上次已完成", resetDetails, true) { confirmCompletedReset() }
+        }
         when {
             rows == null -> text("尚无重置点详情，请刷新查询", 14, parent = resetDetails)
             rows.isEmpty() -> text(if (repository.credits == 0) "当前没有重置点明细" else "接口未返回明细，以上述可用数量为准", 14, parent = resetDetails)
@@ -357,7 +403,9 @@ class MainActivity : Activity() {
         resetStatus.text = listOfNotNull(
             if (repository.error != null || repository.creditsError != null) "查询未成功，当前重置点信息可能已过时" else null,
             repository.creditsError,
-            repository.resetMessage
+            if (repository.pendingResetCreditMissing)
+                "上次重置结果待确认，刷新后将自动核对该重置点是否仍在列表中。"
+            else repository.resetMessage
         ).joinToString("\n")
         resetStatus.visibility = if (resetStatus.text.isEmpty()) View.GONE else View.VISIBLE
         updateResetExpansion()
@@ -381,8 +429,24 @@ class MainActivity : Activity() {
             .setNegativeButton("取消", null)
             .setPositiveButton(if (pending) "重试本次请求" else "使用 1 个重置点") { _, _ ->
                 task("正在使用重置，请稍候…") {
-                    try { UsageRepository(this).consumeReset(credit?.id) }
+                    try { UsageRepository(this).consumeReset(credit?.id).message }
                     finally { UsageWidget.updateAll(this) }
+                }
+            }
+            .setOnDismissListener { confirmingReset = false; updateButtons() }.show()
+    }
+
+    private fun confirmCompletedReset() {
+        if (busy || selectingFile || confirmingReset) return
+        val requestId = UsageRepository(this).pendingResetRequestId ?: return
+        confirmingReset = true
+        updateButtons()
+        AlertDialog.Builder(this).setTitle("确认上次重置已完成？")
+            .setMessage("仅在你已确认上次重置成功、额度已恢复时使用。确认后结束上次的待确认状态，保留当前额度和其他重置点，不会再次使用重置点。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("确认已完成") { _, _ ->
+                task("正在更新上次重置状态…") {
+                    UsageRepository(this).acknowledgeCompletedReset(requestId).also { UsageWidget.updateAll(this) }
                 }
             }
             .setOnDismissListener { confirmingReset = false; updateButtons() }.show()

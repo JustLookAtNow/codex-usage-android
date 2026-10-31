@@ -19,6 +19,15 @@ private fun SharedPreferences.Editor.save() {
     if (!commit()) throw UserError("无法保存查询结果，请检查设备存储空间")
 }
 
+enum class ResetResult(val message: String, val succeeded: Boolean) {
+    RESET("重置成功，已使用 1 个重置点", true),
+    ALREADY_REDEEMED("本次重置已完成，已确认结果", true),
+    NOTHING_TO_RESET("当前没有符合条件的额度需要重置，未使用重置点", false),
+    NO_CREDIT("当前没有可用重置点，未执行重置", false)
+}
+
+internal data class ResetCelebration(val requestId: String, val before: Usage?)
+
 class UsageRepository(
     private val context: Context,
     private val loadCredentials: () -> Credentials = { CredentialStore(context).load() },
@@ -40,43 +49,111 @@ class UsageRepository(
     val creditsError: String? get() = prefs.getString("credits_error", null)
     val creditsUpdatedAt: Long get() = prefs.getLong("credits_updated_at", 0)
     val resetPending: Boolean get() = prefs.contains("reset_request_id")
+    internal val pendingResetRequestId: String? get() = prefs.getString("reset_request_id", null)
+    internal val pendingResetCreditMissing: Boolean get() {
+        val selected = prefs.getString("reset_credit_id", null) ?: return false
+        val rows = resetCredits()?.credits ?: return false
+        return resetPending && creditsUpdatedAt > 0 && creditsError == null && rows.none { it.id == selected }
+    }
     val resetMessage: String? get() = prefs.getString("reset_message", null)
     fun resetCredits(): ResetCredits? = try {
         prefs.getString("credits_body", null)?.let(ResetCreditsParser::parse)
     } catch (_: Exception) { null }
     fun usage(): Usage? = try { body?.let { UsageParser.parse(it) } } catch (_: Exception) { null }
 
-    fun clear() {
-        if (!prefs.edit().clear().commit()) throw UserError("无法清除额度缓存，请重试")
+    // Presentation override only: notifications and comparisons continue to use usage().
+    fun displayUsage(): Usage? = usage()?.let { value ->
+        if (prefs.getBoolean("reset_display_full", false))
+            value.copy(windows = value.windows.map { it.copy(remaining = 100.0) }) else value
     }
 
-    fun refresh() = synchronized(RepositoryLock) {
-        if (CredentialStore(context).mode == null) return@synchronized
+    internal fun claimResetCelebration(): ResetCelebration? = synchronized(ConfigurationLock) {
+        val id = prefs.getString("reset_success_id", null) ?: return@synchronized null
+        val effects = context.getSharedPreferences("reset_effects", Context.MODE_PRIVATE)
+        if (effects.getString("played_id", null) == id) return@synchronized null
+        val before = try {
+            prefs.getString("reset_success_before", null)?.let(UsageParser::parse)
+        } catch (_: Exception) { null }
+        effects.edit().putString("played_id", id).save()
+        ResetCelebration(id, before)
+    }
+
+    fun clear() {
+        if (!prefs.edit().clear().commit()) throw UserError("无法清除额度缓存，请重试")
+        context.getSharedPreferences("reset_effects", Context.MODE_PRIVATE).edit().clear().save()
+    }
+
+    // Explicit user acknowledgement of a historical success, never a new redemption.
+    // Do not replay the old success animation or overwrite today's quota with 100%.
+    internal fun acknowledgeCompletedReset(requestId: String): String = synchronized(RepositoryLock) {
+        if (pendingResetRequestId != requestId) throw UserError("待确认记录已更新，请刷新后查看")
+        val message = "已确认上次重置完成"
+        prefs.edit().putString("reset_acknowledged_request_id", requestId)
+            .putString("reset_acknowledged_credit_id", prefs.getString("reset_credit_id", null))
+            .remove("reset_request_id").remove("reset_account").remove("reset_credit_id")
+            .putString("reset_message", message).save()
+        message
+    }
+
+    fun refresh() = synchronized(RepositoryLock) { refreshInternal() }
+
+    private fun refreshInternal(preserveResetDisplay: Boolean = false) {
+        if (CredentialStore(context).mode == null) return
+        val credentials = try { loadCredentials() } catch (error: Exception) {
+            prefs.edit().putString("error", (error as? UserError)?.message
+                ?: "查询失败，请检查网络或重新导入凭据").save()
+            return
+        }
+        val before = displayUsage()
         try {
-            val credentials = loadCredentials()
-            val usageBody = request("usage", credentials)
+            val current = UsageParser.parse(request("usage", credentials))
             val previous = usage()
-            val current = UsageParser.parse(usageBody)
-            // Persist only public display fields, never raw server responses.
-            val cached = UsageParser.displayJson(current)
-            prefs.edit().putString("body", cached).putLong("updated_at", System.currentTimeMillis())
-                .remove("error").save()
+            val editor = prefs.edit().putString("body", UsageParser.displayJson(current))
+                .putLong("updated_at", nowMillis()).remove("error")
+            if (!preserveResetDisplay) editor.remove("reset_display_full")
+            editor.save()
             if (shouldNotifyWeeklyReset(previous, current)) {
-                // Notification delivery must never turn a successful refresh into an error.
                 try { notifyWeeklyReset() } catch (_: Exception) { }
             }
-            try {
-                fetchCredits(credentials)
-            } catch (error: UserError) {
-                prefs.edit().putString("credits_error", error.message).save()
-            } catch (_: Exception) {
-                prefs.edit().putString("credits_error", "重置点响应无法解析，保留上次结果").save()
-            }
-        } catch (error: UserError) {
-            prefs.edit().putString("error", error.message).save()
-        } catch (_: Exception) {
-            prefs.edit().putString("error", "查询失败，请检查网络或重新导入凭据").save()
+        } catch (error: Exception) {
+            prefs.edit().putString("error", (error as? UserError)?.message
+                ?: "查询失败，请检查网络或重新导入凭据").save()
         }
+        // Credit reconciliation must still work when the usage endpoint fails.
+        try {
+            val current = fetchCredits(credentials)
+            val requestId = prefs.getString("reset_request_id", null)
+            val creditId = prefs.getString("reset_credit_id", null)
+            val rows = current.credits
+            val selected = rows?.firstOrNull { it.id == creditId }
+            // This endpoint can omit spent credits entirely, rather than returning a consumed row.
+            // Only a fresh, explicit list with usable IDs can establish that the old ID disappeared.
+            val noLongerListed = rows != null && rows.all { !it.id.isNullOrBlank() } && selected == null
+            if (requestId != null && creditId != null &&
+                prefs.getString("reset_account", null) == accountHash(credentials) &&
+                (selected?.status in setOf("redeemed", "consumed") || noLongerListed)) {
+                completeReset(ResetResult.ALREADY_REDEEMED, requestId, before)
+            }
+        } catch (error: Exception) {
+            prefs.edit().putString("credits_error", (error as? UserError)?.message
+                ?: "重置点响应无法解析，保留上次结果").save()
+        }
+    }
+
+    private fun accountHash(credentials: Credentials): String =
+        MessageDigest.getInstance("SHA-256").digest(credentials.accountId.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+
+    private fun completeReset(result: ResetResult, requestId: String, before: Usage?, clearCredits: Boolean = false) {
+        val editor = prefs.edit().remove("reset_request_id").remove("reset_account")
+            .remove("reset_credit_id").putString("reset_message", result.message)
+        if (clearCredits) editor.remove("credits").remove("credits_body").remove("credits_updated_at")
+        if (result.succeeded && prefs.getString("reset_success_id", null) != requestId) {
+            editor.putString("reset_success_id", requestId)
+                .putString("reset_success_before", before?.let(UsageParser::displayJson))
+                .putBoolean("reset_display_full", true)
+        }
+        editor.save()
     }
 
     private fun fetchCredits(credentials: Credentials): ResetCredits {
@@ -112,11 +189,10 @@ class UsageRepository(
     }
 
     // Invoked only by a confirmed foreground tap. Never run or retry this from a worker.
-    fun consumeReset(creditId: String? = null): String = synchronized(RepositoryLock) {
+    fun consumeReset(creditId: String? = null): ResetResult = synchronized(RepositoryLock) {
         if (CredentialStore(context).mode == null) throw UserError("请先配置凭据")
         val credentials = loadCredentials()
-        val account = MessageDigest.getInstance("SHA-256").digest(credentials.accountId.toByteArray())
-            .joinToString("") { "%02x".format(it) }
+        val account = accountHash(credentials)
         val previousId = prefs.getString("reset_request_id", null)
         if (previousId != null && prefs.getString("reset_account", null) != account)
             throw UserError("当前账号与待确认的重置请求不同，请切回原账号重试，或重新配置凭据")
@@ -140,10 +216,10 @@ class UsageRepository(
             val response = JSONObject(request("rate-limit-reset-credits/consume", credentials,
                 JSONObject().put("redeem_request_id", requestId).put("credit_id", selectedCredit).toString()))
             when (response.optString("code")) {
-                "reset" -> "重置成功，已使用 1 个重置点"
-                "already_redeemed" -> "本次重置已完成，已确认结果"
-                "nothing_to_reset" -> "当前没有符合条件的额度需要重置，未使用重置点"
-                "no_credit" -> "当前没有可用重置点，未执行重置"
+                "reset" -> ResetResult.RESET
+                "already_redeemed" -> ResetResult.ALREADY_REDEEMED
+                "nothing_to_reset" -> ResetResult.NOTHING_TO_RESET
+                "no_credit" -> ResetResult.NO_CREDIT
                 else -> throw UserError("服务返回了无法识别的重置结果")
             }
         } catch (error: Exception) {
@@ -152,10 +228,9 @@ class UsageRepository(
             prefs.edit().putString("reset_message", message).save()
             throw UserError(message)
         }
-        prefs.edit().remove("reset_request_id").remove("reset_account").remove("reset_credit_id").putString("reset_message", result)
-            .remove("credits").remove("credits_body").remove("credits_updated_at").save()
-        // The server owns which windows reset. Always fetch authoritative usage and credit data.
-        refresh()
+        completeReset(result, requestId, displayUsage(), clearCredits = true)
+        // Refresh authoritative data without replacing this reset's 100% presentation.
+        refreshInternal(preserveResetDisplay = result.succeeded)
         result
     }
 
@@ -167,8 +242,8 @@ class UsageRepository(
         try {
             connection.requestMethod = if (postBody == null) "GET" else "POST"
             connection.instanceFollowRedirects = false
-            connection.connectTimeout = 1000
-            connection.readTimeout = 1000
+            connection.connectTimeout = 5000
+            connection.readTimeout = 10000
             connection.setRequestProperty("Authorization", "Bearer ${credentials.accessToken}")
             connection.setRequestProperty("ChatGPT-Account-Id", credentials.accountId)
             connection.setRequestProperty("Accept", "application/json")

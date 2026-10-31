@@ -64,7 +64,7 @@ class RepositoryTest {
         assertEquals("Bearer test-token-2", connections.last().getRequestProperty("Authorization"))
     }
 
-    @Test fun timeoutKeepsLastUsageAndUsesOneSecondTimeouts() {
+    @Test fun timeoutKeepsLastUsageAndUsesConfiguredTimeouts() {
         var timeout = false
         val connections = mutableListOf<HttpURLConnection>()
         val repository = UsageRepository(context, { Credentials("test-token", "test-account") }, { url ->
@@ -84,7 +84,7 @@ class RepositoryTest {
         assertEquals(cached, repository.body)
         assertEquals(updated, repository.updatedAt)
         assertEquals("连接超时，请稍后刷新", repository.error)
-        assertTrue(connections.all { it.connectTimeout == 1000 && it.readTimeout == 1000 })
+        assertTrue(connections.all { it.connectTimeout == 5000 && it.readTimeout == 10000 })
     }
 
     @Test fun rateLimitPersistsAcrossRepositoryInstancesAndManualRefreshCannotBypassIt() {
@@ -96,8 +96,10 @@ class RepositoryTest {
         repository.refresh()
         repository.refresh()
         UsageRepository(context, { Credentials("test-token", "test-account") }, { error("must wait before opening another connection") }).refresh()
-        assertEquals(1, requests)
+        // Usage and credits have independent backoff; each endpoint is attempted once.
+        assertEquals(2, requests)
         assertTrue(repository.error!!.contains("请求受限"))
+        assertTrue(repository.creditsError!!.contains("请求受限"))
         repository.clear()
         assertNull(repository.body)
         assertEquals(0, repository.updatedAt)
@@ -145,7 +147,7 @@ class RepositoryTest {
             }
             Response(url, 200, body, null).also { calls += it }
         })
-        assertTrue(repository.consumeReset("test-credit-2").contains("重置成功"))
+        assertTrue(repository.consumeReset("test-credit-2").message.contains("重置成功"))
         val post = calls.single { it.requestMethod == "POST" }
         assertTrue(post.url.path.endsWith("/rate-limit-reset-credits/consume"))
         assertEquals("application/json", post.getRequestProperty("Content-Type"))
@@ -185,7 +187,7 @@ class RepositoryTest {
         assertThrows(UserError::class.java) { repository.consumeReset("test-credit-2") }
         assertEquals(1, payloads.size)
         val restarted = UsageRepository(context, { Credentials("new-token", "test-account") }, open)
-        assertTrue(restarted.consumeReset().contains("已完成"))
+        assertTrue(restarted.consumeReset().message.contains("已完成"))
         assertEquals(payloads[0], payloads[1])
         assertEquals("test-credit-1", org.json.JSONObject(payloads[1]).getString("credit_id"))
         assertFalse(restarted.resetPending)
@@ -208,10 +210,10 @@ class RepositoryTest {
         count = 1
         assertThrows(UserError::class.java) { repository.consumeReset("missing-credit") }
         assertEquals(0, posts)
-        assertTrue(repository.consumeReset().contains("没有符合条件"))
+        assertTrue(repository.consumeReset().message.contains("没有符合条件"))
         assertFalse(repository.resetPending)
         code = "no_credit"
-        assertTrue(repository.consumeReset().contains("没有可用"))
+        assertTrue(repository.consumeReset().message.contains("没有可用"))
         assertFalse(repository.resetPending)
     }
 
