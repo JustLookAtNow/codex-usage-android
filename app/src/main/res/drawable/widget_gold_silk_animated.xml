@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="140dp" android:height="13dp"
+            android:viewportWidth="1000" android:viewportHeight="100">
+            <!-- Shallow full-length ribbons; the surrounding space belongs to the bar,
+                 so neither text nor countdown is covered by moving smoke. -->
+            <group android:name="upper_silk" android:pivotX="500" android:pivotY="50">
+                <path android:name="upper_haze" android:strokeColor="@color/widget_gold_glow"
+                    android:strokeAlpha="0.12" android:strokeWidth="8"
+                    android:strokeLineCap="round" android:fillColor="@android:color/transparent"
+                    android:pathData="M24,35 C160,9 230,49 380,26 C505,4 590,8 730,33 C850,52 925,9 976,31" />
+                <path android:name="upper_thread" android:strokeColor="@color/widget_gold_silk"
+                    android:strokeAlpha="0.55" android:strokeWidth="1.5"
+                    android:strokeLineCap="round" android:fillColor="@android:color/transparent"
+                    android:pathData="M24,35 C160,9 230,49 380,26 C505,4 590,8 730,33 C850,52 925,9 976,31" />
+            </group>
+            <group android:name="lower_silk" android:pivotX="500" android:pivotY="50">
+                <path android:name="lower_haze" android:strokeColor="@color/widget_gold_glow"
+                    android:strokeAlpha="0.10" android:strokeWidth="7"
+                    android:strokeLineCap="round" android:fillColor="@android:color/transparent"
+                    android:pathData="M24,67 C160,47 230,92 370,73 C520,51 590,93 735,73 C865,50 920,81 976,65" />
+                <path android:name="lower_thread" android:strokeColor="@color/widget_gold_silk"
+                    android:strokeAlpha="0.38" android:strokeWidth="1.3"
+                    android:strokeLineCap="round" android:fillColor="@android:color/transparent"
+                    android:pathData="M24,67 C160,47 230,92 370,73 C520,51 590,93 735,73 C865,50 920,81 976,65" />
+            </group>
+        </vector>
+    </aapt:attr>
+    <target android:name="upper_silk">
+        <aapt:attr name="android:animation">
+            <set android:ordering="together">
+                <objectAnimator android:propertyName="translateY" android:valueFrom="2" android:valueTo="-3"
+                    android:valueType="floatType" android:duration="2500" android:repeatCount="infinite" android:repeatMode="reverse"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+                <objectAnimator android:propertyName="scaleX" android:valueFrom="0.96" android:valueTo="1.0"
+                    android:valueType="floatType" android:duration="2500" android:repeatCount="infinite" android:repeatMode="reverse"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="lower_silk">
+        <aapt:attr name="android:animation">
+            <set android:ordering="together">
+                <objectAnimator android:propertyName="translateY" android:valueFrom="-2" android:valueTo="3"
+                    android:valueType="floatType" android:duration="2700" android:repeatCount="infinite" android:repeatMode="reverse"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+                <objectAnimator android:propertyName="scaleX" android:valueFrom="1.0" android:valueTo="0.96"
+                    android:valueType="floatType" android:duration="2700" android:repeatCount="infinite" android:repeatMode="reverse"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="upper_thread">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0.30" android:valueTo="0.65"
+                android:valueType="floatType" android:duration="2500" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+        </aapt:attr>
+    </target>
+    <target android:name="lower_thread">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0.48" android:valueTo="0.22"
+                android:valueType="floatType" android:duration="2700" android:repeatCount="infinite" android:repeatMode="reverse"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator" />
+        </aapt:attr>
+    </target>
+</animated-vector>

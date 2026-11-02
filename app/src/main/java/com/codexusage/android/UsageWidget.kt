@@ -184,6 +184,7 @@ open class UsageWidget : AppWidgetProvider() {
                 val valueId = if (index == 0) R.id.widget_primary_value else R.id.widget_weekly_value
                 views.setTextViewText(valueId, percent)
                 views.setTextColor(valueId, color)
+                views.setViewVisibility(valueId, View.VISIBLE)
                 val countdownLabel = when {
                     !singleWeekly || size == WidgetSize.LARGE -> countdown
                     windows[index]?.resetAt == null -> context.getString(R.string.widget_recovery_unknown)
@@ -193,17 +194,14 @@ open class UsageWidget : AppWidgetProvider() {
                 if (size != WidgetSize.COMPACT) {
                     val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
                     views.setImageViewBitmap(progressId, quotaProgress(context, value, color, style, size, singleWeekly))
+                    views.setViewVisibility(progressId, View.VISIBLE)
                     views.setContentDescription(progressId, "$label 可用 $percent")
-                    WidgetParticleProgress.apply(context, views, index, value, style, size, singleWeekly, !night)
+                    WidgetParticleProgress.apply(context, views, index, value, style, size, singleWeekly, true)
                     val ring = if (size == WidgetSize.WIDE) quotaRing(context, value, index == 1, style, size) else rings[index]
                     views.setImageViewBitmap(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, ring)
                     views.setContentDescription(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, "$label 可用 $percent")
-                    WidgetParticleRing.apply(context, views, index, value, style, size, night)
-                    if (singleWeekly) {
-                        views.setViewVisibility(valueId, if (night) View.GONE else View.VISIBLE)
-                        views.setViewVisibility(progressId, if (night) View.GONE else View.VISIBLE)
-                        views.setViewVisibility(R.id.widget_weekly_ring, if (night) View.VISIBLE else View.GONE)
-                    }
+                    views.setViewVisibility(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, View.GONE)
+                    WidgetParticleRing.apply(context, views, index, value, style, size, false)
                 }
                 description += "$label 可用 $percent，恢复倒计时 $countdown"
             }
@@ -268,8 +266,6 @@ open class UsageWidget : AppWidgetProvider() {
             for (id in intArrayOf(R.id.widget_static_text_1, R.id.widget_static_text_2, R.id.widget_static_text_3)) {
                 views.setTextColor(id, text)
             }
-            views.setTextColor(R.id.widget_static_primary_1, context.getColor(R.color.widget_glass_primary))
-            views.setTextColor(R.id.widget_static_weekly_1, context.getColor(R.color.widget_glass_weekly))
             val divider = context.getColor(R.color.widget_glass_divider)
             views.setInt(R.id.widget_divider_1, "setBackgroundColor", divider)
             views.setInt(R.id.widget_divider_2, "setBackgroundColor", divider)

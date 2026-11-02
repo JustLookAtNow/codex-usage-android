@@ -278,7 +278,7 @@ class GlassWidgetTest {
             Color.alpha(progress.getPixel(468, 7)))
         assertEquals("The outer margin should stay transparent", 0,
             Color.alpha(progress.getPixel(468, 1)))
-        val centerY = ((3f + 2f) * progress.height / 12f).toInt()
+        val centerY = progress.height / 2
         val fill = progress.getPixel(350, centerY)
         assertTrue("The particle gradient should retain its green quota color",
             Color.green(fill) > Color.red(fill) && Color.green(fill) > Color.blue(fill))
@@ -289,7 +289,7 @@ class GlassWidgetTest {
         for (value in listOf(9.0, 50.0, 86.0)) {
             val bitmap = UsageWidget.quotaProgress(themed, value, color, WidgetStyle.GLASS, WidgetSize.WIDE)
             val end = (value * 10).toInt()
-            for (y in listOf(0, 1, 2, 26, 27, 31)) for (x in end until bitmap.width) {
+            for (y in listOf(0, 1, 2, 45, 46, 47)) for (x in end until bitmap.width) {
                 assertEquals("glow exceeds $value% at $x,$y", 0, Color.alpha(bitmap.getPixel(x, y)))
             }
             assertEquals(themed.getColor(R.color.widget_glass_track), bitmap.getPixel(end + 10, centerY))
@@ -352,9 +352,8 @@ class GlassWidgetTest {
                 val glassParams = glassBar.layoutParams as ViewGroup.MarginLayoutParams
                 assertEquals(standardBar.height + standardParams.topMargin + standardParams.bottomMargin,
                     glassBar.height + glassParams.topMargin + glassParams.bottomMargin)
-                val topInset = if (singleWeekly && size == WidgetSize.LARGE) 0 else (3 * density).toInt()
                 assertTrue("bar shifted: $size singleWeekly=$singleWeekly ${width}x$height",
-                    kotlin.math.abs(yInRoot(standardBar) - (yInRoot(glassBar) + topInset)) <= 1)
+                    kotlin.math.abs(yInRoot(standardBar) - yInRoot(glassBar)) <= 1)
                 val countdown = if (singleWeekly) R.id.widget_weekly_countdown else R.id.widget_primary_countdown
                 assertEquals("countdown shifted: $size singleWeekly=$singleWeekly ${width}x$height",
                     yInRoot(standard.findViewById(countdown)), yInRoot(glass.findViewById(countdown)))

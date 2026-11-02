@@ -122,7 +122,7 @@ class WidgetParticleProgressTest {
         }
     }
 
-    @Test fun compactAndNightRingLayoutsDoNotCreateBarParticleAnimators() {
+    @Test fun compactLayoutsDoNotCreateBarParticleAnimators() {
         val context = RuntimeEnvironment.getApplication()
         for (night in listOf(false, true)) {
             val themed = context.createConfigurationContext(Configuration(context.resources.configuration).apply {
@@ -130,7 +130,7 @@ class WidgetParticleProgressTest {
                     (if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
             })
             for (style in WidgetStyle.entries) for (size in WidgetSize.entries) for (single in listOf(false, true)) {
-                if (!night && size != WidgetSize.COMPACT) continue
+                if (size != WidgetSize.COMPACT) continue
                 val view = remote(themed, style, size, single, 90.0).apply(themed, FrameLayout(themed))
                 assertNull(view.findViewById<View>(R.id.widget_progress_particles))
                 for (id in listOf(R.id.widget_primary_progress_container, R.id.widget_weekly_progress_container)) {

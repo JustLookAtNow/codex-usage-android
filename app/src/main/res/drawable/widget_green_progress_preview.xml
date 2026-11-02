@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="140dp" android:height="19dp" android:viewportWidth="1000" android:viewportHeight="100">
+    <path android:fillColor="@color/widget_glass_track"
+        android:pathData="M24,26 H976 Q1000,26 1000,50 Q1000,74 976,74 H24 Q0,74 0,50 Q0,26 24,26 Z" />
+    <path android:fillColor="@color/widget_progress_green"
+        android:pathData="M24,26 H586 Q610,26 610,50 Q610,74 586,74 H24 Q0,74 0,50 Q0,26 24,26 Z" />
+</vector>

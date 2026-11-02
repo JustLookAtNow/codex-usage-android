@@ -94,8 +94,8 @@ class WeeklyWidgetTest {
                     assertNull(view.findViewById<View>(R.id.widget_weekly_ring))
                 } else {
                     assertEquals("更新于 ${localTime(updatedAt / 1000)}", timestamp.text.toString())
-                    assertEquals(if (night) View.VISIBLE else View.GONE, view.findViewById<View>(R.id.widget_weekly_ring).visibility)
-                    assertEquals(if (night) View.GONE else View.VISIBLE, view.findViewById<View>(R.id.widget_weekly_progress).visibility)
+                    assertEquals(View.GONE, view.findViewById<View>(R.id.widget_weekly_ring).visibility)
+                    assertEquals(View.VISIBLE, view.findViewById<View>(R.id.widget_weekly_progress).visibility)
                 }
                 for (text in texts) {
                     val label = "$size $width x $height night=$night text=${text.text}"

@@ -94,20 +94,16 @@ class WidgetRenderingTest {
                     val progress = view.findViewById<ImageView>(R.id.widget_primary_progress)
                     val ring = view.findViewById<ImageView>(R.id.widget_primary_ring)
                     val pixels = (progress.drawable as BitmapDrawable).bitmap
-                    assertQuotaHue(themed.getColor(R.color.widget_progress_green), pixels.getPixel(509, 10))
-                    assertEquals(themed.getColor(R.color.widget_track), pixels.getPixel(510, 10))
-                    assertEquals(if (night) View.GONE else View.VISIBLE, progress.visibility)
-                    assertEquals(if (night) View.VISIBLE else View.GONE, ring.visibility)
+                    assertQuotaHue(themed.getColor(R.color.widget_progress_green), pixels.getPixel(509, pixels.height / 2))
+                    assertEquals(themed.getColor(R.color.widget_track), pixels.getPixel(510, pixels.height / 2))
+                    assertEquals(View.VISIBLE, progress.visibility)
+                    assertEquals(View.GONE, ring.visibility)
                     assertEquals("5h 可用 51%", ring.contentDescription.toString())
                 }
                 for (id in listOf(R.id.widget_primary_value, R.id.widget_weekly_value,
                     R.id.widget_primary_countdown, R.id.widget_weekly_countdown)) {
                     val text = view.findViewById<TextView>(id)
-                    if (night && size != WidgetSize.COMPACT && id in listOf(R.id.widget_primary_value, R.id.widget_weekly_value)) {
-                        // Night mode renders the percentage into the same image as the ring.
-                        assertEquals(View.GONE, text.visibility)
-                        continue
-                    }
+                    assertEquals(View.VISIBLE, text.visibility)
                     assertTrue("$size night=$night text has no width", text.width > 0)
                     assertTrue("$size night=$night text has no height", text.height > 0)
                     assertTrue("$size night=$night text is clipped horizontally",
@@ -230,10 +226,10 @@ class WidgetRenderingTest {
                                     (value ?: 0.0) > 40.0 -> themed.getColor(R.color.widget_progress_green)
                                     else -> color
                                 }
-                                if ((value ?: 0.0) >= 10.1) assertQuotaHue(fillColor, pixels.getPixel(100, 10))
-                                else assertEquals(track, pixels.getPixel(100, 10))
-                                if (value == 100.0) assertQuotaHue(fillColor, pixels.getPixel(980, 10))
-                                else assertEquals(track, pixels.getPixel(980, 10))
+                                if ((value ?: 0.0) >= 10.1) assertQuotaHue(fillColor, pixels.getPixel(100, pixels.height / 2))
+                                else assertEquals(track, pixels.getPixel(100, pixels.height / 2))
+                                if (value == 100.0) assertQuotaHue(fillColor, pixels.getPixel(980, pixels.height / 2))
+                                else assertEquals(track, pixels.getPixel(980, pixels.height / 2))
                                 val ring = view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring)
                                 val ringPixels = (ring.drawable as BitmapDrawable).bitmap
                                 val labelColor = if (value == 100.0) themed.getColor(R.color.widget_quota_full)
