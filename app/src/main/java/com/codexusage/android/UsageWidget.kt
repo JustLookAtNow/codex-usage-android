@@ -98,7 +98,8 @@ open class UsageWidget : AppWidgetProvider() {
                     fun viewsFor(dimensions: SizeF): RemoteViews = createViews(context,
                         widgetSize(dimensions.width.toInt(), dimensions.height.toInt()), windows, rings,
                         now, status, detail, configured, refreshing, repository.updatedAt, style,
-                        failed = configured && repository.error != null, resetCredits = resetCredits, resetCount = resetCount)
+                        failed = configured && repository.error != null, resetCredits = resetCredits, resetCount = resetCount,
+                        widthDp = dimensions.width)
                     val exactSizes = BundleCompat.getParcelableArrayList(options,
                         AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
                     val views = if (!exactSizes.isNullOrEmpty()) {
@@ -123,7 +124,8 @@ open class UsageWidget : AppWidgetProvider() {
             context: Context, size: WidgetSize, windows: List<UsageWindow?>, rings: List<Bitmap>,
             now: Long, status: String, detail: String, configured: Boolean, refreshing: Boolean = false,
             updatedAt: Long = 0, style: WidgetStyle = WidgetStyle.STANDARD, failed: Boolean = false,
-            resetCredits: ResetCredits? = null, resetCount: Int? = resetCredits?.availableCount
+            resetCredits: ResetCredits? = null, resetCount: Int? = resetCredits?.availableCount,
+            widthDp: Float = 360f
         ): RemoteViews {
             val singleWeekly = weeklyOnly(windows)
             val layout = if (singleWeekly) when (size) {
@@ -193,10 +195,10 @@ open class UsageWidget : AppWidgetProvider() {
                 views.setTextViewText(if (index == 0) R.id.widget_primary_countdown else R.id.widget_weekly_countdown, countdownLabel)
                 if (size != WidgetSize.COMPACT) {
                     val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
-                    views.setImageViewBitmap(progressId, quotaProgress(context, value, color, style, size, singleWeekly))
+                    views.setImageViewBitmap(progressId, quotaProgress(context, value, color, style, size, singleWeekly, widthDp))
                     views.setViewVisibility(progressId, View.VISIBLE)
                     views.setContentDescription(progressId, "$label 可用 $percent")
-                    WidgetParticleProgress.apply(context, views, index, value, style, size, singleWeekly, true)
+                    WidgetParticleProgress.apply(context, views, index, value, style, size, singleWeekly, true, widthDp)
                     val ring = if (size == WidgetSize.WIDE) quotaRing(context, value, index == 1, style, size) else rings[index]
                     views.setImageViewBitmap(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, ring)
                     views.setContentDescription(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring, "$label 可用 $percent")
@@ -293,8 +295,8 @@ open class UsageWidget : AppWidgetProvider() {
 
         // Bitmap colors survive RemoteViews on Android 8+, including older launchers.
         internal fun quotaProgress(context: Context, value: Double?, color: Int, widgetStyle: WidgetStyle = WidgetStyle.STANDARD,
-            size: WidgetSize = WidgetSize.LARGE, singleWeekly: Boolean = false): Bitmap =
-            WidgetParticleProgress.render(context, value, color, widgetStyle, size, singleWeekly)
+            size: WidgetSize = WidgetSize.LARGE, singleWeekly: Boolean = false, widthDp: Float = 360f): Bitmap =
+            WidgetParticleProgress.render(context, value, color, widgetStyle, size, singleWeekly, widthDp)
 
     }
 }

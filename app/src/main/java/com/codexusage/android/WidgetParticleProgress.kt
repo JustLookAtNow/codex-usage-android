@@ -15,6 +15,7 @@ import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.graphics.ColorUtils
+import kotlin.math.roundToInt
 
 internal object WidgetParticleProgress {
     // Reserve the same smoke space at every quota, so reaching 100% never moves text.
@@ -27,17 +28,33 @@ internal object WidgetParticleProgress {
         else Metrics(bar + inset * 2, inset, bar)
     }
 
-    fun trackBounds(height: Int, style: WidgetStyle, size: WidgetSize, singleWeekly: Boolean): RectF {
+    // Match the available width in the four horizontal-bar layouts. Keeping the
+    // bitmap's physical aspect ratio preserves circular caps and isotropic blur.
+    internal fun barWidthDp(widthDp: Float, size: WidgetSize, singleWeekly: Boolean): Float = when {
+        size == WidgetSize.WIDE && singleWeekly -> (widthDp - 140f) / 2.4f
+        size == WidgetSize.WIDE -> (widthDp - 148f) / 2f
+        singleWeekly -> widthDp - 24f
+        else -> (widthDp - 53f) / 2f
+    }.coerceAtLeast(1f)
+
+    private fun bitmap(widthDp: Float, size: WidgetSize, singleWeekly: Boolean): Bitmap {
+        val width = (barWidthDp(widthDp, size, singleWeekly) * 48f / metrics(size, singleWeekly).height).roundToInt()
+        return Bitmap.createBitmap(width.coerceAtLeast(1), 48, Bitmap.Config.ARGB_8888)
+    }
+
+    fun trackBounds(height: Int, style: WidgetStyle, size: WidgetSize, singleWeekly: Boolean,
+        width: Int = 1000): RectF {
         val metrics = metrics(size, singleWeekly)
-        return RectF(0f, metrics.top * height.toFloat() / metrics.height, 1000f,
+        return RectF(0f, metrics.top * height.toFloat() / metrics.height, width.toFloat(),
             (metrics.top + metrics.bar) * height.toFloat() / metrics.height)
     }
 
     private fun fillPath(track: RectF, value: Double?): Path {
-        val end = ((value ?: 0.0).coerceIn(0.0, 100.0) * 10).toFloat()
-        val radius = minOf(track.height() / 2f, end / 2f)
+        val end = (track.width() * (value ?: 0.0).coerceIn(0.0, 100.0) / 100.0).toFloat()
+        val radius = track.height() / 2f
         return Path().apply {
-            if (end > 0f) addRoundRect(RectF(0f, track.top, end, track.bottom), radius, radius, Path.Direction.CW)
+            if (end > 0f) addRoundRect(RectF(0f, track.top, end, track.bottom),
+                minOf(radius, end / 2f), radius, Path.Direction.CW)
         }
     }
 
@@ -60,28 +77,35 @@ internal object WidgetParticleProgress {
     }
 
     fun render(context: Context, value: Double?, color: Int, style: WidgetStyle, size: WidgetSize,
-        singleWeekly: Boolean): Bitmap {
-        val bitmap = Bitmap.createBitmap(1000, 48, Bitmap.Config.ARGB_8888)
-        val track = trackBounds(bitmap.height, style, size, singleWeekly)
+        singleWeekly: Boolean, widthDp: Float = 360f): Bitmap {
+        val bitmap = bitmap(widthDp, size, singleWeekly)
+        val track = trackBounds(bitmap.height, style, size, singleWeekly, bitmap.width)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = context.getColor(if (style == WidgetStyle.GLASS) R.color.widget_glass_track else R.color.widget_track)
         }
-        if (value == 100.0) drawGoldHalo(context, canvas, track)
+        val filled = fillPath(track, value)
+        if (value != null && value > 0.0) drawHalo(context, canvas, track, filled, value, color)
         canvas.drawRoundRect(track, track.height() / 2f, track.height() / 2f, paint)
         if (value == null || value <= 0.0) return bitmap
-        val end = (value.coerceAtMost(100.0) * 10).toFloat()
+        val end = (track.width() * value.coerceAtMost(100.0) / 100.0).toFloat()
         canvas.save()
-        canvas.clipPath(fillPath(track, value))
+        canvas.clipPath(filled)
         val fill = fillColor(context, value, color)
-        // A horizontal silk gradient keeps gold soft instead of cylindrical;
-        // ordinary quotas retain their gentle mint material and particle texture.
-        paint.shader = if (value == 100.0) LinearGradient(0f, 0f, 1000f, 0f,
-            intArrayOf(fill, context.getColor(R.color.widget_gold_silk), fill,
-                context.getColor(R.color.widget_gold_silk), fill),
-            floatArrayOf(0f, 0.24f, 0.52f, 0.78f, 1f), Shader.TileMode.CLAMP)
-        else LinearGradient(0f, track.top, 0f, track.bottom,
-            ColorUtils.blendARGB(fill, Color.WHITE, 0.1f), fill, Shader.TileMode.CLAMP)
+        // Cross-sectional light gives the bar a luminous surface rather than
+        // unrelated horizontal yellow patches. The ends share the same material.
+        val colors = when {
+            value == 100.0 -> intArrayOf(context.getColor(R.color.widget_gold_silk),
+                ColorUtils.blendARGB(fill, Color.WHITE, 0.38f), fill,
+                ColorUtils.blendARGB(fill, Color.WHITE, 0.20f), context.getColor(R.color.widget_gold_shadow))
+            value > 40.0 -> intArrayOf(context.getColor(R.color.widget_progress_green_top),
+                ColorUtils.blendARGB(fill, Color.WHITE, 0.12f), fill, fill,
+                context.getColor(R.color.widget_progress_green_bottom))
+            else -> intArrayOf(ColorUtils.blendARGB(fill, Color.WHITE, 0.20f), fill, fill, fill,
+                ColorUtils.blendARGB(fill, Color.BLACK, 0.05f))
+        }
+        paint.shader = LinearGradient(0f, track.top, 0f, track.bottom, colors,
+            floatArrayOf(0f, 0.22f, 0.50f, 0.76f, 1f), Shader.TileMode.CLAMP)
         canvas.drawRect(track, paint)
         paint.shader = null
         // One static accent complements two drifting large flecks in wide bars;
@@ -89,11 +113,12 @@ internal object WidgetParticleProgress {
         val wideParticles = size == WidgetSize.WIDE
         for (index in 0 until if (value == 100.0) 0 else 20) {
             val scatter = (index * 73 + 19) % 101
-            val x = 28f + index * 49f + if (wideParticles) (scatter % 23 - 11).toFloat() else 0f
-            if (x >= end - 12f) break
+            val scaleX = bitmap.width / 1000f
+            val x = (28f + index * 49f + if (wideParticles) (scatter % 23 - 11).toFloat() else 0f) * scaleX
+            if (x >= end - 12f * scaleX) break
             val y = track.top + track.height() * (0.25f + (index * 37 % 53) / 100f)
             val large = wideParticles && index == 4
-            val radiusX = if (large) 7.5f else if (wideParticles) 3.5f + scatter % 3 else 3.5f
+            val radiusX = (if (large) 7.5f else if (wideParticles) 3.5f + scatter % 3 else 3.5f) * scaleX
             val radiusY = track.height() * (if (wideParticles) {
                 if (large) 0.15f else 0.065f + (scatter % 4) * 0.008f
             } else if (index % 4 == 0) 0.09f else 0.065f)
@@ -103,17 +128,39 @@ internal object WidgetParticleProgress {
             paint.color = ColorUtils.setAlphaComponent(particleColor(context, value), alpha)
             canvas.drawOval(x - radiusX, y - radiusY, x + radiusX, y + radiusY, paint)
         }
+        if (value == 100.0) drawGoldRim(context, canvas, track, filled)
         canvas.restore()
-        if (value == 100.0) drawGoldWisps(context, canvas, track, bitmap.height.toFloat())
+        if (value == 100.0) {
+            canvas.save()
+            canvas.scale(bitmap.width / 1000f, 1f)
+            drawGoldWisps(context, canvas, track, bitmap.height.toFloat())
+            canvas.restore()
+        }
         return bitmap
     }
 
-    private fun drawGoldHalo(context: Context, canvas: Canvas, track: RectF) {
+    private fun drawHalo(context: Context, canvas: Canvas, track: RectF, filled: Path, value: Double, color: Int) {
+        val gold = value == 100.0
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = ColorUtils.setAlphaComponent(context.getColor(R.color.widget_gold_glow), 85)
-            maskFilter = BlurMaskFilter(track.height() * 0.36f, BlurMaskFilter.Blur.NORMAL)
+            this.color = ColorUtils.setAlphaComponent(
+                if (gold) context.getColor(R.color.widget_gold_glow) else fillColor(context, value, color),
+                if (gold) 155 else 52)
+            maskFilter = BlurMaskFilter(track.height() * (if (gold) 0.30f else 0.24f), BlurMaskFilter.Blur.NORMAL)
         }
-        canvas.drawRoundRect(track, track.height() / 2f, track.height() / 2f, paint)
+        canvas.drawPath(filled, paint)
+    }
+
+    private fun drawGoldRim(context: Context, canvas: Canvas, track: RectF, filled: Path) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = track.height() * 0.16f
+            shader = LinearGradient(0f, track.top, 0f, track.bottom,
+                intArrayOf(ColorUtils.blendARGB(context.getColor(R.color.widget_gold_silk), Color.WHITE, 0.55f),
+                    ColorUtils.setAlphaComponent(context.getColor(R.color.widget_gold_silk), 35),
+                    ColorUtils.setAlphaComponent(context.getColor(R.color.widget_gold_silk), 180)),
+                floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
+        }
+        canvas.drawPath(filled, paint)
     }
 
     private fun drawGoldWisps(context: Context, canvas: Canvas, track: RectF, height: Float) {
@@ -155,9 +202,9 @@ internal object WidgetParticleProgress {
     }
 
     private fun mask(context: Context, value: Double?, style: WidgetStyle, size: WidgetSize,
-        singleWeekly: Boolean): Bitmap {
-        val bitmap = Bitmap.createBitmap(1000, 48, Bitmap.Config.ARGB_8888)
-        val track = trackBounds(bitmap.height, style, size, singleWeekly)
+        singleWeekly: Boolean, widthDp: Float): Bitmap {
+        val bitmap = bitmap(widthDp, size, singleWeekly)
+        val track = trackBounds(bitmap.height, style, size, singleWeekly, bitmap.width)
         val path = Path().apply { addRoundRect(track, track.height() / 2f, track.height() / 2f, Path.Direction.CW) }
         path.op(fillPath(track, value), Path.Op.DIFFERENCE)
         Canvas(bitmap).drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -167,7 +214,7 @@ internal object WidgetParticleProgress {
     }
 
     fun apply(context: Context, views: RemoteViews, index: Int, value: Double?, style: WidgetStyle,
-        size: WidgetSize, singleWeekly: Boolean, visible: Boolean) {
+        size: WidgetSize, singleWeekly: Boolean, visible: Boolean, widthDp: Float = 360f) {
         val container = if (index == 0) R.id.widget_primary_progress_container else R.id.widget_weekly_progress_container
         val particles = if (index == 0) R.id.widget_primary_particles else R.id.widget_weekly_particles
         val maskId = if (index == 0) R.id.widget_primary_particle_mask else R.id.widget_weekly_particle_mask
@@ -195,7 +242,7 @@ internal object WidgetParticleProgress {
             views.addView(particles, animation)
             // This bitmap masks the unfilled track. It scales with the bar, so
             // particles stay inside the true quota at every launcher width.
-            if (!full) views.setImageViewBitmap(maskId, mask(context, value, style, size, singleWeekly))
+            if (!full) views.setImageViewBitmap(maskId, mask(context, value, style, size, singleWeekly, widthDp))
             else views.setImageViewResource(maskId, 0)
         } else {
             views.setImageViewResource(maskId, 0)

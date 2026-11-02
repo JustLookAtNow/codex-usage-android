@@ -198,17 +198,18 @@ class GlassWidgetTest {
                     if (size != WidgetSize.COMPACT) {
                         val progressId = if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress
                         val bitmap = (view.findViewById<ImageView>(progressId).drawable as BitmapDrawable).bitmap
-                        val y = (0 until bitmap.height).maxBy { Color.alpha(bitmap.getPixel(40, it)) }
-                        val fill = bitmap.getPixel(40, y)
+                        val y = bitmap.height / 2
+                        val fill = bitmap.getPixel((bitmap.width * 0.04f).toInt(), y)
                         val expectedHsl = FloatArray(3).also { ColorUtils.colorToHSL(color, it) }
                         val actualHsl = FloatArray(3).also { ColorUtils.colorToHSL(fill, it) }
                         assertTrue("Softer fills must retain their green/amber/red meaning",
                             kotlin.math.abs(expectedHsl[0] - actualHsl[0]) < 20f && actualHsl[1] > 0.05f)
                         assertTrue("The new progress fill should be lighter than the text",
                             ColorUtils.calculateLuminance(fill) > ColorUtils.calculateLuminance(color))
-                        assertTrue((0 until bitmap.height).any { bitmap.getPixel(980, it) == themed.getColor(R.color.widget_glass_track) })
+                        assertTrue((0 until bitmap.height).any { bitmap.getPixel((bitmap.width * 0.98f).toInt(), it) == themed.getColor(R.color.widget_glass_track) })
                         assertEquals("The endpoint must use the same material as the body",
-                            fill, bitmap.getPixel((value * 10).toInt() - 16, y))
+                            fill, bitmap.getPixel((bitmap.width * value / 100 -
+                                WidgetParticleProgress.trackBounds(bitmap.height, WidgetStyle.GLASS, size, singleWeekly).height() / 2).toInt(), y))
                     }
                 }
             }
@@ -270,33 +271,27 @@ class GlassWidgetTest {
         }
     }
 
-    @Test fun glassProgressUsesUniformMintWithoutAWhiteEndpoint() {
+    @Test fun glassProgressHasASubtleHaloAndConsistentMintSurface() {
         val themed = themed(false)
         val color = themed.getColor(R.color.widget_glass_primary)
-        val progress = UsageWidget.quotaProgress(themed, 50.0, color, WidgetStyle.GLASS, WidgetSize.WIDE)
-        assertEquals("No endpoint flare should extend beside the bar", 0,
-            Color.alpha(progress.getPixel(468, 7)))
-        assertEquals("The outer margin should stay transparent", 0,
-            Color.alpha(progress.getPixel(468, 1)))
-        val centerY = progress.height / 2
-        val fill = progress.getPixel(350, centerY)
-        assertTrue("The particle gradient should retain its green quota color",
-            Color.green(fill) > Color.red(fill) && Color.green(fill) > Color.blue(fill))
-        val tip = progress.getPixel(498, centerY)
-        assertEquals("The tip should have the same soft mint surface as the body", fill, tip)
-        assertTrue("The mint fill should be lighter than the old green",
-            ColorUtils.calculateLuminance(fill) > ColorUtils.calculateLuminance(color))
         for (value in listOf(9.0, 50.0, 86.0)) {
             val bitmap = UsageWidget.quotaProgress(themed, value, color, WidgetStyle.GLASS, WidgetSize.WIDE)
-            val end = (value * 10).toInt()
-            for (y in listOf(0, 1, 2, 45, 46, 47)) for (x in end until bitmap.width) {
-                assertEquals("glow exceeds $value% at $x,$y", 0, Color.alpha(bitmap.getPixel(x, y)))
+            val track = WidgetParticleProgress.trackBounds(bitmap.height, WidgetStyle.GLASS, WidgetSize.WIDE, false, bitmap.width)
+            val end = (bitmap.width * value / 100).toInt()
+            val centerY = track.centerY().toInt()
+            val fill = bitmap.getPixel((end / 2).coerceAtLeast(1), centerY)
+            assertTrue("The new fill must retain its green hue", Color.green(fill) > Color.red(fill) && Color.green(fill) > Color.blue(fill))
+            assertTrue("A faint halo must be visible above the filled portion", Color.alpha(bitmap.getPixel(end / 2, track.top.toInt() - 2)) in 1..70)
+            assertEquals("The empty portion must retain its track", themed.getColor(R.color.widget_glass_track),
+                bitmap.getPixel((end + track.height()).toInt().coerceAtMost(bitmap.width - 1), centerY))
+            for (x in 0 until bitmap.width) {
+                assertTrue("Glow must fade before the next text row", Color.alpha(bitmap.getPixel(x, 0)) <= 3)
+                assertTrue("Glow must fade before the countdown", Color.alpha(bitmap.getPixel(x, bitmap.height - 1)) <= 3)
             }
-            assertEquals(themed.getColor(R.color.widget_glass_track), bitmap.getPixel(end + 10, centerY))
         }
         for (value in listOf(null, 0.0)) {
             val empty = UsageWidget.quotaProgress(themed, value, color, WidgetStyle.GLASS, WidgetSize.WIDE)
-            assertEquals(0, Color.alpha(empty.getPixel(500, 0)))
+            assertEquals(0, Color.alpha(empty.getPixel(empty.width / 2, 0)))
         }
     }
 

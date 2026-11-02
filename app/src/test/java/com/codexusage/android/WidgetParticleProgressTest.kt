@@ -32,14 +32,14 @@ class WidgetParticleProgressTest {
     private val now = 1800000000L
 
     private fun remote(context: Context, style: WidgetStyle, size: WidgetSize, single: Boolean,
-        value: Double?): RemoteViews {
+        value: Double?, widthDp: Float = 360f): RemoteViews {
         val windows = listOf(
             UsageWindow("5h", value, now + 3600, 18000, false).takeUnless { single },
             UsageWindow("Weekly", value, now + 86400, 604800, false))
         val rings = windows.mapIndexed { index, window ->
             UsageWidget.quotaRing(context, window?.remaining, index == 1, style)
         }
-        val remote = UsageWidget.createViews(context, size, windows, rings, now, "刚刚", "", true, style = style)
+        val remote = UsageWidget.createViews(context, size, windows, rings, now, "刚刚", "", true, style = style, widthDp = widthDp)
         val parcel = Parcel.obtain()
         return try {
             remote.writeToParcel(parcel, 0)
@@ -89,8 +89,10 @@ class WidgetParticleProgressTest {
                     val maskId = if (single) R.id.widget_weekly_particle_mask else R.id.widget_primary_particle_mask
                     val container = view.findViewById<View>(containerId)
                     val particleHost = view.findViewById<FrameLayout>(particlesId)
-                    val animated = prepare(particleHost.findViewById(R.id.widget_progress_particles))
+                    var animated = prepare(particleHost.findViewById(R.id.widget_progress_particles))
                     for (width in listOf(240, 360, 480)) {
+                        remote(context, style, size, single, 51.0, width.toFloat()).reapply(context, view)
+                        animated = prepare(particleHost.findViewById(R.id.widget_progress_particles))
                         measure(context, view, width, if (size == WidgetSize.LARGE) 168 else 80)
                         val first = draw(container)
                         assertTrue("Launcher drawing must start the particle animation", animated.isRunning)

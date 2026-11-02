@@ -73,7 +73,7 @@ class WidgetParticleRingTest {
                         val bar = (view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_progress else R.id.widget_weekly_progress)
                             .drawable as BitmapDrawable).bitmap
                         val y = bar.height / 2
-                        assertHue(expected, bar.getPixel(100, y))
+                        assertHue(expected, bar.getPixel((bar.width * 0.1f).toInt(), y))
                     }
                 }
             }

@@ -1,8 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="140dp" android:height="19dp" android:viewportWidth="1000" android:viewportHeight="100">
-    <path android:fillColor="@color/widget_glass_track"
-        android:pathData="M24,26 H976 Q1000,26 1000,50 Q1000,74 976,74 H24 Q0,74 0,50 Q0,26 24,26 Z" />
-    <path android:fillColor="@color/widget_progress_green"
-        android:pathData="M24,26 H586 Q610,26 610,50 Q610,74 586,74 H24 Q0,74 0,50 Q0,26 24,26 Z" />
-</vector>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:top="4dp" android:bottom="4dp">
+        <scale
+            android:level="6100"
+            android:scaleWidth="100%"
+            android:scaleHeight="100%"
+            android:scaleGravity="start|fill_vertical">
+            <shape android:shape="rectangle">
+                <solid android:color="@color/widget_preview_green_glow" />
+                <corners android:radius="5.5dp" />
+            </shape>
+        </scale>
+    </item>
+    <item android:top="5dp" android:bottom="5dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_glass_track" />
+            <corners android:radius="4.5dp" />
+        </shape>
+    </item>
+    <item android:top="5dp" android:bottom="5dp">
+        <scale
+            android:level="6100"
+            android:scaleWidth="100%"
+            android:scaleHeight="100%"
+            android:scaleGravity="start|fill_vertical">
+            <shape android:shape="rectangle">
+                <corners android:radius="4.5dp" />
+                <gradient
+                    android:angle="270"
+                    android:startColor="@color/widget_progress_green_top"
+                    android:centerColor="@color/widget_progress_green"
+                    android:endColor="@color/widget_progress_green_bottom" />
+            </shape>
+        </scale>
+    </item>
+</layer-list>

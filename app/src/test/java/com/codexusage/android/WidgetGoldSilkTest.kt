@@ -44,7 +44,7 @@ class WidgetGoldSilkTest {
         })
 
     private fun remote(context: Context, style: WidgetStyle, size: WidgetSize, single: Boolean,
-        primary: Double?, weekly: Double?): RemoteViews {
+        primary: Double?, weekly: Double?, widthDp: Float = 360f): RemoteViews {
         val windows = listOf(
             UsageWindow("5h", primary, now + 17400, 18000, false).takeUnless { single },
             UsageWindow("Weekly", weekly, now + 313200, 604800, false))
@@ -52,7 +52,7 @@ class WidgetGoldSilkTest {
             UsageWidget.quotaRing(context, window?.remaining, index == 1, style)
         }
         val sent = UsageWidget.createViews(context, size, windows, rings, now, "11m", "", true,
-            style = style, resetCount = 3)
+            style = style, resetCount = 3, widthDp = widthDp)
         val parcel = Parcel.obtain()
         return try {
             sent.writeToParcel(parcel, 0)
@@ -82,6 +82,33 @@ class WidgetGoldSilkTest {
     private fun seek(animated: AnimatedVectorDrawable, millis: Long) {
         val backend = ReflectionHelpers.getField<Any>(animated, "mAnimatorSet")
         ReflectionHelpers.getField<AnimatorSet>(backend, "mSet").currentPlayTime = millis
+    }
+
+    @Test fun circularCapsMatchTheActualLauncherBarAtEveryWidth() {
+        Robolectric.buildActivity(Activity::class.java).setup().use { controller ->
+            for (night in listOf(false, true)) {
+                val context = themed(controller.get(), night)
+                for (style in WidgetStyle.entries) for (size in listOf(WidgetSize.WIDE, WidgetSize.LARGE)) {
+                    for (single in listOf(false, true)) for (width in listOf(240, 360, 480)) {
+                        val view = remote(context, style, size, single, 0.0, 0.0, width.toFloat())
+                            .apply(context, FrameLayout(context))
+                        measure(context, view, width, size)
+                        val id = if (single) R.id.widget_weekly_progress else R.id.widget_primary_progress
+                        val bar = view.findViewById<ImageView>(id)
+                        val bitmap = (bar.drawable as BitmapDrawable).bitmap
+                        val label = "$style $size single=$single width=$width night=$night"
+                        assertEquals("$label: nonuniform scaling would flatten the caps",
+                            bar.width.toDouble() / bar.height, bitmap.width.toDouble() / bitmap.height, 0.06)
+                        val track = WidgetParticleProgress.trackBounds(bitmap.height, style, size, single, bitmap.width)
+                        val edge = (track.height() * 0.10f).toInt()
+                        assertTrue("$label: the upper corner must be round",
+                            Color.alpha(bitmap.getPixel(edge, track.top.toInt() + edge)) < 80)
+                        assertTrue("$label: the middle of the cap must reach the edge",
+                            Color.alpha(bitmap.getPixel(1, track.centerY().toInt())) > 180)
+                    }
+                }
+            }
+        }
     }
 
     @Test fun fullQuotaSwitchesIndependentlyWithoutResidualEffectsOrLayoutMovement() {
@@ -157,8 +184,10 @@ class WidgetGoldSilkTest {
                     val view = remote(context, style, size, single, 100.0, 100.0).apply(context, host)
                     host.addView(view)
                     val index = if (single) 1 else 0
-                    val animated = prepare(view, index)
+                    var animated = prepare(view, index)
                     for (width in listOf(240, 360, 480)) {
+                        remote(context, style, size, single, 100.0, 100.0, width.toFloat()).reapply(context, view)
+                        animated = prepare(view, index)
                         measure(context, view, width, size)
                         val container = view.findViewById<View>(if (single) R.id.widget_weekly_progress_container else R.id.widget_primary_progress_container)
                         val first = draw(container)
@@ -192,11 +221,15 @@ class WidgetGoldSilkTest {
                     val track = WidgetParticleProgress.trackBounds(bitmap.height, style, size, single)
                     val ordinary = UsageWidget.quotaProgress(context, 99.99, full, style, size, single)
                     var smoke = 0
+                    var goldAlpha = 0L
+                    var ordinaryAlpha = 0L
                     for (x in 20 until bitmap.width - 20) for (y in 1 until track.top.toInt()) {
                         if (Color.alpha(bitmap.getPixel(x, y)) > 10) smoke++
-                        assertEquals(0, Color.alpha(ordinary.getPixel(x, y)))
+                        goldAlpha += Color.alpha(bitmap.getPixel(x, y))
+                        ordinaryAlpha += Color.alpha(ordinary.getPixel(x, y))
                     }
                     assertTrue("Static full bar must include smoke: $style $size", smoke > 100)
+                    assertTrue("Normal glow must be subtler than full gold", goldAlpha > ordinaryAlpha * 2)
                 }
             }
         }

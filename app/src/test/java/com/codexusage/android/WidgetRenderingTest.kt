@@ -94,8 +94,9 @@ class WidgetRenderingTest {
                     val progress = view.findViewById<ImageView>(R.id.widget_primary_progress)
                     val ring = view.findViewById<ImageView>(R.id.widget_primary_ring)
                     val pixels = (progress.drawable as BitmapDrawable).bitmap
-                    assertQuotaHue(themed.getColor(R.color.widget_progress_green), pixels.getPixel(509, pixels.height / 2))
-                    assertEquals(themed.getColor(R.color.widget_track), pixels.getPixel(510, pixels.height / 2))
+                    assertQuotaHue(themed.getColor(R.color.widget_progress_green), pixels.getPixel((pixels.width * 0.509f).toInt(), pixels.height / 2))
+                    // The fractional endpoint occupies an antialiased pixel; sample just past it.
+                    assertEquals(themed.getColor(R.color.widget_track), pixels.getPixel(kotlin.math.ceil(pixels.width * 0.51).toInt() + 1, pixels.height / 2))
                     assertEquals(View.VISIBLE, progress.visibility)
                     assertEquals(View.GONE, ring.visibility)
                     assertEquals("5h 可用 51%", ring.contentDescription.toString())
@@ -226,10 +227,10 @@ class WidgetRenderingTest {
                                     (value ?: 0.0) > 40.0 -> themed.getColor(R.color.widget_progress_green)
                                     else -> color
                                 }
-                                if ((value ?: 0.0) >= 10.1) assertQuotaHue(fillColor, pixels.getPixel(100, pixels.height / 2))
-                                else assertEquals(track, pixels.getPixel(100, pixels.height / 2))
-                                if (value == 100.0) assertQuotaHue(fillColor, pixels.getPixel(980, pixels.height / 2))
-                                else assertEquals(track, pixels.getPixel(980, pixels.height / 2))
+                                if ((value ?: 0.0) >= 10.1) assertQuotaHue(fillColor, pixels.getPixel((pixels.width * 0.1f).toInt(), pixels.height / 2))
+                                else assertEquals(track, pixels.getPixel((pixels.width * 0.1f).toInt(), pixels.height / 2))
+                                if (value == 100.0) assertQuotaHue(fillColor, pixels.getPixel((pixels.width * 0.98f).toInt(), pixels.height / 2))
+                                else assertEquals(track, pixels.getPixel((pixels.width * 0.98f).toInt(), pixels.height / 2))
                                 val ring = view.findViewById<ImageView>(if (index == 0) R.id.widget_primary_ring else R.id.widget_weekly_ring)
                                 val ringPixels = (ring.drawable as BitmapDrawable).bitmap
                                 val labelColor = if (value == 100.0) themed.getColor(R.color.widget_quota_full)
