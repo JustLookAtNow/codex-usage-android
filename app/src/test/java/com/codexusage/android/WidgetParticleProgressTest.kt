@@ -157,10 +157,10 @@ class WidgetParticleProgressTest {
                 }
                 val first = draw(view)
                 first.save(File(output, "$style-$size.png"))
-                if (style == WidgetStyle.GLASS && size == WidgetSize.LARGE) {
+                if (style == WidgetStyle.GLASS) {
                     repeat(30) { frame ->
                         animations.forEach { seek(it, frame * 160L) }
-                        draw(view).save(File(output, "frame-${frame.toString().padStart(2, '0')}.png"))
+                        draw(view).save(File(output, "$size-frame-${frame.toString().padStart(2, '0')}.png"))
                     }
                     assertFalse(pixels(first).contentEquals(pixels(draw(view))))
                 }

@@ -84,14 +84,24 @@ internal object WidgetParticleProgress {
             ColorUtils.blendARGB(fill, Color.WHITE, 0.1f), fill, Shader.TileMode.CLAMP)
         canvas.drawRect(track, paint)
         paint.shader = null
-        // A few quiet flecks also give launchers that pause animations a useful frame.
+        // One static accent complements two drifting large flecks in wide bars;
+        // the remaining smaller specks vary in position, size, and opacity.
+        val wideParticles = size == WidgetSize.WIDE
         for (index in 0 until if (value == 100.0) 0 else 20) {
-            val x = 28f + index * 49f
+            val scatter = (index * 73 + 19) % 101
+            val x = 28f + index * 49f + if (wideParticles) (scatter % 23 - 11).toFloat() else 0f
             if (x >= end - 12f) break
             val y = track.top + track.height() * (0.25f + (index * 37 % 53) / 100f)
-            val radiusY = track.height() * (if (index % 4 == 0) 0.09f else 0.065f)
-            paint.color = ColorUtils.setAlphaComponent(particleColor(context, value), if (index % 3 == 0) 150 else 80)
-            canvas.drawOval(x - 3.5f, y - radiusY, x + 3.5f, y + radiusY, paint)
+            val large = wideParticles && index == 4
+            val radiusX = if (large) 7.5f else if (wideParticles) 3.5f + scatter % 3 else 3.5f
+            val radiusY = track.height() * (if (wideParticles) {
+                if (large) 0.15f else 0.065f + (scatter % 4) * 0.008f
+            } else if (index % 4 == 0) 0.09f else 0.065f)
+            val alpha = if (wideParticles) {
+                if (large) 200 else 100 + scatter % 65
+            } else if (index % 3 == 0) 150 else 80
+            paint.color = ColorUtils.setAlphaComponent(particleColor(context, value), alpha)
+            canvas.drawOval(x - radiusX, y - radiusY, x + radiusX, y + radiusY, paint)
         }
         canvas.restore()
         if (value == 100.0) drawGoldWisps(context, canvas, track, bitmap.height.toFloat())
@@ -176,7 +186,11 @@ internal object WidgetParticleProgress {
             views.setViewLayoutHeight(particles, (if (full) metrics.height else metrics.bar).toFloat(), TypedValue.COMPLEX_UNIT_DIP)
             views.setViewLayoutMargin(particles, RemoteViews.MARGIN_TOP, (if (full) 0 else metrics.top).toFloat(), TypedValue.COMPLEX_UNIT_DIP)
             val animation = RemoteViews(context.packageName,
-                if (full) R.layout.widget_gold_progress_particles else R.layout.widget_progress_particles)
+                when {
+                    full -> R.layout.widget_gold_progress_particles
+                    size == WidgetSize.WIDE -> R.layout.widget_wide_progress_particles
+                    else -> R.layout.widget_progress_particles
+                })
             if (!full) tintParticles(context, animation, R.id.widget_progress_particles, value!!)
             views.addView(particles, animation)
             // This bitmap masks the unfilled track. It scales with the bar, so
