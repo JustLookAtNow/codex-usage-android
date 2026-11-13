@@ -34,7 +34,11 @@ object ChatGptAuthParser {
             if (parts.size != 3) throw UserError("ChatGPT access token 格式无法识别")
             // Decode only to identify the token's account; the server validates the JWT.
             val payload = JSONObject(String(Base64.getUrlDecoder().decode(parts[1]), Charsets.UTF_8))
-            val accountId = payload.getJSONObject("https://api.openai.com/auth").opt("chatgpt_account_id") as? String
+            val authClaims = payload.getJSONObject("https://api.openai.com/auth")
+            // Recent ChatGPT builds moved chatgpt_account_id out of the session token and into
+            // the workspace token stored beside it. Keep accepting the older session token.
+            val accountId = authClaims.opt("chatgpt_account_id") as? String
+                ?: workspaceAccountId(entries[prefix + "workspace_tokens"])
                 ?: throw UserError("ChatGPT access token 缺少有效账号")
             val tokenExpiry = payload.getLong("exp")
             if (tokenExpiry <= nowMillis / 1000) throw UserError("ChatGPT 凭据已过期，请打开 ChatGPT 更新登录后刷新")
@@ -70,5 +74,22 @@ object ChatGptAuthParser {
         }
         if (!mapFound) throw UserError("请选择 ChatGPT 的认证存储 XML")
         return entries
+    }
+
+    private fun workspaceAccountId(value: String?): String? {
+        val tokenEntries = value?.let { JSONObject(it).optJSONObject("tokens") } ?: return null
+        val accounts = mutableSetOf<String>()
+        val names = tokenEntries.keys()
+        while (names.hasNext()) {
+            val token = tokenEntries.optJSONObject(names.next())?.opt("value") as? String ?: continue
+            val parts = token.split('.')
+            if (parts.size != 3) continue
+            val payload = JSONObject(String(Base64.getUrlDecoder().decode(parts[1]), Charsets.UTF_8))
+            val account = payload.optJSONObject("https://api.openai.com/auth")
+                ?.opt("chatgpt_account_id") as? String ?: continue
+            if (account.isNotBlank()) accounts += account
+        }
+        if (accounts.size > 1) throw UserError("ChatGPT 存在多个工作区，暂时无法确定当前账号")
+        return accounts.singleOrNull()
     }
 }

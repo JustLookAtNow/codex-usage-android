@@ -37,6 +37,10 @@ class ChatGptAuthParserTest {
         </map>
     """.trimIndent().trimStart().toByteArray()
 
+    private fun workspaceTokens(vararg accounts: String): String = JSONObject().put("tokens", JSONObject().apply {
+        accounts.forEachIndexed { index, account -> put("workspace-$index", JSONObject().put("value", jwt(account))) }
+    }).toString()
+
     private fun parse(bytes: ByteArray, index: ByteArray = session) = ChatGptAuthParser.parse(bytes, index, now)
 
     @Test fun usesCurrentSessionEvenWithLegacyAndNewerUnrelatedCredentials() {
@@ -55,6 +59,20 @@ class ChatGptAuthParserTest {
     @Test fun sourceTokenUpdateIsReadOnNextParse() {
         assertEquals("active-account", parse(xml()).accountId)
         assertEquals("updated-account", parse(xml(jwt("updated-account"))).accountId)
+    }
+
+    @Test fun readsAccountFromSingleWorkspaceTokenWhenSessionTokenOmitsIt() {
+        val token = jwt(null)
+        val tokens = workspaceTokens("workspace-account")
+        val credentials = parse(xml(token, extra = """<string name="${prefix}workspace_tokens">$tokens</string>"""))
+        assertEquals(token, credentials.accessToken)
+        assertEquals("workspace-account", credentials.accountId)
+    }
+
+    @Test fun rejectsAmbiguousWorkspaceAccounts() {
+        val tokens = workspaceTokens("first-account", "second-account")
+        val bytes = xml(jwt(null), extra = """<string name="${prefix}workspace_tokens">$tokens</string>""")
+        assertTrue(assertThrows(UserError::class.java) { parse(bytes) }.message!!.contains("多个工作区"))
     }
 
     @Test fun loggedOutOrMissingActiveSessionNeverFallsBackToOtherTokens() {
